@@ -27,7 +27,7 @@ public class WhatTheDuckExtension : Extension
     {
         LoadSettings();
 
-        Logs.Info($"WhatTheDuck Extension initializing (large file threshold: {WildcardHandler.LargeFileSizeThreshold / (1024 * 1024)}MB)...");
+        Logs.Info($"WhatTheDuck Extension initializing (large file threshold: {WildcardHandler.LargeFileSizeThreshold}MB)...");
 
         WildcardHandler.Initialize();
 
