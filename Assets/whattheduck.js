@@ -1,5 +1,6 @@
 let whatTheDuckSettings = {
-    largeFileSizeThresholdMB: 50
+    largeFileSizeThreshold: 5,
+    keyboardNavigationEnabled: true,
 };
 
 function initWhatTheDuck() {
@@ -22,7 +23,7 @@ function initWhatTheDuck() {
                                     <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_threshold', arguments[0])">?</span>
                                 </span>
                             </label>
-                            <input class="auto-number" type="number" id="whattheduck-threshold" min="1" step="1" value="${whatTheDuckSettings.largeFileSizeThresholdMB}" autocomplete="off" onchange="autoNumberWidth(this)">
+                            <input class="auto-number" type="number" id="whattheduck-threshold" min="1" step="1" value="${whatTheDuckSettings.largeFileSizeThreshold}" autocomplete="off" onchange="autoNumberWidth(this)">
                         </div>
                         <div class="sui-popover sui-info-popover" id="popover_whattheduck_threshold">
                             <b>Large File Threshold</b> (integer):<br>
@@ -32,6 +33,28 @@ function initWhatTheDuck() {
                                 <br>Files below this threshold use SwarmUI's standard wildcard handling.
                             </span>
                             <br>Examples: <code>50</code>, <code>100</code>
+                        </div>
+
+                        <div class="auto-input auto-input-flex">
+                            <span class="auto-input-name">
+                                Keyboard Navigation
+                                <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_keyboard_nav', arguments[0])">?</span>
+                            </span>
+                            <label class="auto-checkbox">
+                                <input type="checkbox" id="whattheduck-keyboard-nav" ${whatTheDuckSettings.keyboardNavigationEnabled ? 'checked' : ''}>
+                                <span class="auto-checkbox-label">Enable</span>
+                            </label>
+                        </div>
+                        <div class="sui-popover sui-info-popover" id="popover_whattheduck_keyboard_nav">
+                            <b>Keyboard Navigation</b> (toggle):<br>
+                            <span class="slight-left-margin-block">
+                                Enables keyboard shortcuts for image navigation and actions:
+                                <br>• <code>A</code> - Navigate to previous image
+                                <br>• <code>D</code> - Navigate to next image
+                                <br>• <code>S</code> - Toggle star/favorite
+                                <br>• <code>X</code> - Delete image (double-tap required)
+                            </span>
+                            <br><b>Note:</b> Changes take effect after page reload.
                         </div>
 
                     </div>
@@ -57,24 +80,33 @@ function initWhatTheDuck() {
 function loadWhatTheDuckSettings() {
     genericRequest('WhatTheDuckGetSettings', {}, (data) => {
         if (data.success) {
-            whatTheDuckSettings.largeFileSizeThresholdMB = data.largeFileSizeThresholdMB;
-            document.getElementById('whattheduck-threshold').value = data.largeFileSizeThresholdMB;
+            whatTheDuckSettings.largeFileSizeThreshold = data.largeFileSizeThreshold;
+            whatTheDuckSettings.keyboardNavigationEnabled = data.keyboardNavigationEnabled;
+            document.getElementById('whattheduck-threshold').value = data.largeFileSizeThreshold;
+            document.getElementById('whattheduck-keyboard-nav').checked = data.keyboardNavigationEnabled;
+
+            // Initialize keyboard navigation if enabled
+            if (whatTheDuckSettings.keyboardNavigationEnabled && typeof keyboardNavigation === 'function') {
+                keyboardNavigation();
+            }
         }
     });
 }
 
 function saveWhatTheDuckSettings() {
     const threshold = parseInt(document.getElementById('whattheduck-threshold').value, 10);
+    const keyboardNav = document.getElementById('whattheduck-keyboard-nav').checked;
 
     if (isNaN(threshold) || threshold < 1) {
         showWhatTheDuckStatus('Please enter a valid number (minimum 1 MB)', 'error');
         return;
     }
 
-    genericRequest('WhatTheDuckSaveSettings', { largeFileSizeThresholdMB: threshold }, (data) => {
+    genericRequest('WhatTheDuckSaveSettings', { largeFileSizeThreshold: threshold, keyboardNavigationEnabled: keyboardNav }, (data) => {
         if (data.success) {
-            whatTheDuckSettings.largeFileSizeThresholdMB = threshold;
-            showWhatTheDuckStatus('Settings saved!', 'success');
+            whatTheDuckSettings.largeFileSizeThreshold = threshold;
+            whatTheDuckSettings.keyboardNavigationEnabled = keyboardNav;
+            showWhatTheDuckStatus('Settings saved! Reload page for keyboard navigation changes to take effect.', 'success');
         } else {
             showWhatTheDuckStatus('Failed to save settings: ' + (data.error || 'Unknown error'), 'error');
         }

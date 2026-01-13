@@ -12,12 +12,14 @@ namespace WhatTheDuck;
 /// </summary>
 public class WhatTheDuckExtension : Extension
 {
-    /// <summary>Settings file path.</summary>
     private string SettingsFilePath => $"{Program.DataDir}/WhatTheDuckSettings.json";
+
+    public static bool KeyboardNavigationEnabled { get; set; } = true;
 
     public override void OnPreInit()
     {
         ScriptFiles.Add("Assets/whattheduck.js");
+        ScriptFiles.Add("Assets/keyboard-navigation.js");
         StyleSheetFiles.Add("Assets/whattheduck.css");
     }
 
@@ -49,11 +51,18 @@ public class WhatTheDuckExtension : Extension
             {
                 string json = File.ReadAllText(SettingsFilePath);
                 JObject settings = JObject.Parse(json);
-                if (settings.TryGetValue("largeFileSizeThresholdMB", out JToken thresholdToken))
+                if (settings.TryGetValue("largeFileSizeThreshold", out JToken thresholdToken))
                 {
-                    long thresholdMB = thresholdToken.Value<long>();
-                    WildcardHandler.LargeFileSizeThreshold = thresholdMB * 1024 * 1024;
-                    Logs.Debug($"WhatTheDuck: Loaded settings - threshold: {thresholdMB}MB");
+                    WildcardHandler.LargeFileSizeThreshold = thresholdToken.Value<long>();
+                }
+                if (settings.TryGetValue("keyboardNavigationEnabled", out JToken keyboardNavToken))
+                {
+                    KeyboardNavigationEnabled = keyboardNavToken.Value<bool>();
+                }
+
+                foreach (var setting in settings.Properties())
+                {
+                    Logs.Debug($"WhatTheDuck: Loaded setting - {setting.Name}: {setting.Value}");
                 }
             }
         }
@@ -70,10 +79,15 @@ public class WhatTheDuckExtension : Extension
         {
             JObject settings = new()
             {
-                ["largeFileSizeThresholdMB"] = WildcardHandler.LargeFileSizeThreshold / (1024 * 1024)
+                ["largeFileSizeThreshold"] = WildcardHandler.LargeFileSizeThreshold,
+                ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled
             };
-            File.WriteAllText(SettingsFilePath, settings.ToString());
-            Logs.Debug($"WhatTheDuck: Saved settings - threshold: {WildcardHandler.LargeFileSizeThreshold / (1024 * 1024)}MB");
+            File.WriteAllText(SettingsFilePath, settings.ToString());   
+
+            foreach (var setting in settings.Properties())
+            {
+                Logs.Debug($"WhatTheDuck: Saved setting - {setting.Name}: {setting.Value}");
+            }
         }
         catch (Exception ex)
         {
@@ -91,16 +105,17 @@ public class WhatTheDuckExtension : Extension
         return new JObject
         {
             ["success"] = true,
-            ["largeFileSizeThresholdMB"] = WildcardHandler.LargeFileSizeThreshold / (1024 * 1024)
+            ["largeFileSizeThreshold"] = WildcardHandler.LargeFileSizeThreshold,
+            ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled
         };
     }
 
     /// <summary>API endpoint to save settings.</summary>
-    public async Task<JObject> WhatTheDuckSaveSettings(Session session, long largeFileSizeThresholdMB)
+    public async Task<JObject> WhatTheDuckSaveSettings(Session session, long largeFileSizeThreshold, bool keyboardNavigationEnabled)
     {
         try
         {
-            if (largeFileSizeThresholdMB < 1)
+            if (largeFileSizeThreshold < 1)
             {
                 return new JObject
                 {
@@ -109,13 +124,12 @@ public class WhatTheDuckExtension : Extension
                 };
             }
 
-            WildcardHandler.LargeFileSizeThreshold = largeFileSizeThresholdMB * 1024 * 1024;
+            WildcardHandler.LargeFileSizeThreshold = largeFileSizeThreshold;
+            KeyboardNavigationEnabled = keyboardNavigationEnabled;
             SaveSettings();
-
-            // Notify wildcard handler that settings changed
             WildcardHandler.OnSettingsChanged();
 
-            Logs.Info($"WhatTheDuck: Settings updated - threshold: {largeFileSizeThresholdMB}MB");
+            Logs.Info($"WhatTheDuck: Settings updated - threshold: {largeFileSizeThreshold}MB, keyboard navigation: {keyboardNavigationEnabled}");
 
             return new JObject
             {

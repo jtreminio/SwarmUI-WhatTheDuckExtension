@@ -13,7 +13,7 @@ namespace WhatTheDuck;
 public static class WildcardHandler
 {
     /// <summary>Threshold in bytes above which a wildcard file is considered "large" and uses lazy loading.</summary>
-    public static long LargeFileSizeThreshold { get; set; } = 50 * 1024 * 1024; // 50 MB
+    public static long LargeFileSizeThreshold = 5;
 
     /// <summary>Store the original wildcard processor so we can delegate to it for small files.</summary>
     private static Func<string, T2IPromptHandling.PromptTagContext, string> OriginalWildcardProcessor;
@@ -67,7 +67,7 @@ public static class WildcardHandler
         try
         {
             FileInfo fileInfo = new(filePath);
-            return fileInfo.Exists && fileInfo.Length >= LargeFileSizeThreshold;
+            return fileInfo.Exists && fileInfo.Length >= LargeFileSizeThreshold * 1024 * 1024;
         }
         catch
         {
