@@ -15,13 +15,26 @@ public static class DatadumpManager
 
     public static bool IsActive => Enabled && !string.IsNullOrWhiteSpace(DatadumpFolder);
 
-    private record DatadumpEntry(string WildcardName, string DatadumpPath);
+    private record DatadumpEntry(string WildcardName, string DatadumpPath, string FileHash);
 
     private static readonly ConcurrentDictionary<string, DatadumpEntry> DatadumpFiles = new();
 
     private static readonly ConcurrentDictionary<string, DatadumpCard> IndexCache = new();
 
     private static readonly ConcurrentDictionary<string, object> BuildLocks = new();
+
+    private static string ComputeFileHash(string filePath)
+    {
+        try
+        {
+            FileInfo fi = new(filePath);
+            return $"{fi.Length}:{fi.LastWriteTimeUtc.Ticks}";
+        }
+        catch
+        {
+            return "";
+        }
+    }
 
     public static void Initialize()
     {
@@ -51,9 +64,20 @@ public static class DatadumpManager
     /// </summary>
     public static void SyncPlaceholders()
     {
+        SyncPlaceholdersInternal(invalidateChangedIndexes: false, out _, out _, out _);
+    }
+
+    private static void SyncPlaceholdersInternal(bool invalidateChangedIndexes, out int invalidatedCount, out int addedCount, out int removedCount)
+    {
+        invalidatedCount = 0;
+        addedCount = 0;
+        removedCount = 0;
+
         if (!IsActive)
         {
             DatadumpFiles.Clear();
+            IndexCache.Clear();
+            BuildLocks.Clear();
             return;
         }
 
@@ -70,7 +94,7 @@ public static class DatadumpManager
 
             Directory.CreateDirectory(wildcardDir);
 
-            DatadumpFiles.Clear();
+            HashSet<string> seenKeys = new();
             int created = 0;
             int skipped = 0;
 
@@ -81,10 +105,40 @@ public static class DatadumpManager
                     .TrimStart('/');
 
                 string wildcardName = relativePath.BeforeLast('.');
+                string key = wildcardName.ToLowerFast();
+                string currentHash = ComputeFileHash(datadumpFile);
+
+                seenKeys.Add(key);
+
+                bool isNew = !DatadumpFiles.TryGetValue(key, out var existingEntry);
+                bool hashChanged = !isNew && existingEntry.FileHash != currentHash;
+
+                if (invalidateChangedIndexes && (isNew || hashChanged))
+                {
+                    if (IndexCache.TryRemove(key, out _))
+                    {
+                        BuildLocks.TryRemove(key, out _);
+                        if (isNew)
+                        {
+                            addedCount++;
+                            Logs.Debug($"WhatTheDuck: New datadump file detected: '{wildcardName}'");
+                        }
+                        else
+                        {
+                            invalidatedCount++;
+                            Logs.Debug($"WhatTheDuck: Datadump file changed, invalidating cache: '{wildcardName}'");
+                        }
+                    }
+                    else if (isNew)
+                    {
+                        addedCount++;
+                        Logs.Debug($"WhatTheDuck: New datadump file detected: '{wildcardName}'");
+                    }
+                }
+
+                DatadumpFiles[key] = new DatadumpEntry(wildcardName, datadumpFile, currentHash);
+
                 string placeholderPath = Path.Combine(wildcardDir, relativePath);
-
-                DatadumpFiles[wildcardName.ToLowerFast()] = new DatadumpEntry(wildcardName, datadumpFile);
-
                 string placeholderDir = Path.GetDirectoryName(placeholderPath);
                 if (!string.IsNullOrEmpty(placeholderDir) && !Directory.Exists(placeholderDir))
                 {
@@ -100,6 +154,21 @@ public static class DatadumpManager
                 else
                 {
                     skipped++;
+                }
+            }
+
+            if (invalidateChangedIndexes)
+            {
+                var keysToRemove = DatadumpFiles.Keys.Where(k => !seenKeys.Contains(k)).ToList();
+                foreach (string key in keysToRemove)
+                {
+                    if (DatadumpFiles.TryRemove(key, out var removed))
+                    {
+                        IndexCache.TryRemove(key, out _);
+                        BuildLocks.TryRemove(key, out _);
+                        removedCount++;
+                        Logs.Debug($"WhatTheDuck: Datadump file removed: '{removed.WildcardName}'");
+                    }
                 }
             }
 
@@ -238,14 +307,33 @@ public static class DatadumpManager
 
         try
         {
-            Logs.Info("WhatTheDuck: Manual refresh triggered - rescanning datadump files...");
+            Logs.Info("WhatTheDuck: Manual refresh triggered - scanning for changes...");
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            ClearCache();
-            SyncPlaceholders();
-            stopwatch.Stop();
-            Logs.Info($"WhatTheDuck: Refresh complete - {Count} datadump files found in {stopwatch.ElapsedMilliseconds}ms");
 
-            return (true, Count, $"Refresh complete. Found {Count} datadump file(s). Indexes will be rebuilt on first use.", null);
+            SyncPlaceholdersInternal(invalidateChangedIndexes: true, out int invalidated, out int added, out int removed);
+
+            stopwatch.Stop();
+
+            int totalChanges = invalidated + added + removed;
+            string message;
+
+            if (totalChanges == 0)
+            {
+                message = $"No changes detected. {Count} datadump file(s) indexed.";
+                Logs.Info($"WhatTheDuck: Refresh complete - no changes detected ({stopwatch.ElapsedMilliseconds}ms)");
+            }
+            else
+            {
+                var parts = new List<string>();
+                if (added > 0) parts.Add($"{added} added");
+                if (invalidated > 0) parts.Add($"{invalidated} changed");
+                if (removed > 0) parts.Add($"{removed} removed");
+
+                message = $"Refresh complete: {string.Join(", ", parts)}. {Count} datadump file(s) total.";
+                Logs.Info($"WhatTheDuck: Refresh complete - {string.Join(", ", parts)} ({stopwatch.ElapsedMilliseconds}ms)");
+            }
+
+            return (true, Count, message, null);
         }
         catch (Exception ex)
         {

@@ -26,17 +26,14 @@ public static class WildcardHandler
         T2IPromptHandling.PromptTagProcessors["wc"] = WildcardProcessor;
         T2IPromptHandling.PromptTagLengthEstimators["wildcard"] = WildcardLengthEstimator;
         T2IPromptHandling.PromptTagLengthEstimators["wc"] = WildcardLengthEstimator;
-        Program.ModelRefreshEvent += DatadumpManager.ClearCache;
     }
 
     public static void Shutdown()
     {
-        Program.ModelRefreshEvent -= DatadumpManager.ClearCache;
     }
 
     public static void OnSettingsChanged()
     {
-        DatadumpManager.ClearCache();
     }
 
     public static bool IsDatadumpWildcard(string card)
