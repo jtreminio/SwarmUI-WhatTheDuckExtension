@@ -8,12 +8,15 @@ namespace WhatTheDuck;
 public static class DatadumpManager
 {
     private const string PlaceholderContent = "# WhatTheDuck datadump placeholder - do not edit\n";
+    private const string CacheDirectoryName = ".cache";
 
     public static bool Enabled { get; set; } = false;
 
     public static string DatadumpFolder { get; set; } = "";
 
     public static bool IsActive => Enabled && !string.IsNullOrWhiteSpace(DatadumpFolder);
+
+    private static string CacheDirectory => Path.Combine(DatadumpFolder, CacheDirectoryName);
 
     private record DatadumpEntry(string WildcardName, string DatadumpPath, string FileHash);
 
@@ -23,16 +26,25 @@ public static class DatadumpManager
 
     private static readonly ConcurrentDictionary<string, object> BuildLocks = new();
 
-    private static string ComputeFileHash(string filePath)
+    private static string GetCacheFilePath(string key)
+    {
+        string safeFileName = key.Replace("/", "_").Replace("\\", "_") + ".bin";
+        return Path.Combine(CacheDirectory, safeFileName);
+    }
+
+    private static void DeleteCacheFile(string key)
     {
         try
         {
-            FileInfo fi = new(filePath);
-            return $"{fi.Length}:{fi.LastWriteTimeUtc.Ticks}";
+            string cachePath = GetCacheFilePath(key);
+            if (File.Exists(cachePath))
+            {
+                File.Delete(cachePath);
+            }
         }
         catch
         {
-            return "";
+            // Non-fatal
         }
     }
 
@@ -106,28 +118,22 @@ public static class DatadumpManager
 
                 string wildcardName = relativePath.BeforeLast('.');
                 string key = wildcardName.ToLowerFast();
-                string currentHash = ComputeFileHash(datadumpFile);
+                string currentHash = DatadumpCard.ComputeFileHash(datadumpFile);
 
                 seenKeys.Add(key);
 
                 bool isNew = !DatadumpFiles.TryGetValue(key, out var existingEntry);
                 bool hashChanged = !isNew && existingEntry.FileHash != currentHash;
 
-                if (invalidateChangedIndexes && (isNew || hashChanged))
+                if (invalidateChangedIndexes)
                 {
-                    if (IndexCache.TryRemove(key, out _))
+                    if (hashChanged)
                     {
+                        IndexCache.TryRemove(key, out _);
                         BuildLocks.TryRemove(key, out _);
-                        if (isNew)
-                        {
-                            addedCount++;
-                            Logs.Debug($"WhatTheDuck: New datadump file detected: '{wildcardName}'");
-                        }
-                        else
-                        {
-                            invalidatedCount++;
-                            Logs.Debug($"WhatTheDuck: Datadump file changed, invalidating cache: '{wildcardName}'");
-                        }
+                        DeleteCacheFile(key);
+                        invalidatedCount++;
+                        Logs.Debug($"WhatTheDuck: Datadump file changed, invalidating cache: '{wildcardName}'");
                     }
                     else if (isNew)
                     {
@@ -166,6 +172,7 @@ public static class DatadumpManager
                     {
                         IndexCache.TryRemove(key, out _);
                         BuildLocks.TryRemove(key, out _);
+                        DeleteCacheFile(key);
                         removedCount++;
                         Logs.Debug($"WhatTheDuck: Datadump file removed: '{removed.WildcardName}'");
                     }
@@ -278,14 +285,25 @@ public static class DatadumpManager
                 return existing;
             }
 
-            Logs.Info($"WhatTheDuck: Building line index for datadump '{wildcardName}'...");
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
             DatadumpCard card = new(key, filePath);
-            card.BuildIndex();
 
-            stopwatch.Stop();
-            Logs.Info($"WhatTheDuck: Indexed '{wildcardName}' with {card.LineCount:N0} lines in {stopwatch.ElapsedMilliseconds}ms");
+            string cachePath = GetCacheFilePath(key);
+            string currentHash = DatadumpCard.ComputeFileHash(filePath);
+
+            if (card.TryLoadFromCache(cachePath, currentHash))
+            {
+                stopwatch.Stop();
+                Logs.Info($"WhatTheDuck: Loaded '{wildcardName}' from cache ({card.LineCount:N0} lines, {stopwatch.ElapsedMilliseconds}ms)");
+            }
+            else
+            {
+                Logs.Info($"WhatTheDuck: Building line index for datadump '{wildcardName}'...");
+                card.BuildIndex();
+                card.SaveToCache(cachePath);
+                stopwatch.Stop();
+                Logs.Info($"WhatTheDuck: Indexed '{wildcardName}' with {card.LineCount:N0} lines in {stopwatch.ElapsedMilliseconds}ms (cached)");
+            }
 
             IndexCache[key] = card;
             return card;

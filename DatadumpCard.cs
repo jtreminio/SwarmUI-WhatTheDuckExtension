@@ -6,9 +6,16 @@ namespace WhatTheDuck;
 
 public class DatadumpCard
 {
+    private const string CacheMagic = "WTDC";
+    private const byte CacheVersion = 1;
+
     public string Name { get; }
 
     public string FilePath { get; }
+
+    public string FileHash { get; private set; }
+
+    public bool LoadedFromCache { get; private set; }
 
     private long[] _lineOffsets;
 
@@ -22,8 +29,124 @@ public class DatadumpCard
         FilePath = filePath;
     }
 
+    public static string ComputeFileHash(string filePath)
+    {
+        try
+        {
+            FileInfo fi = new(filePath);
+            return $"{fi.Length}:{fi.LastWriteTimeUtc.Ticks}";
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    public bool TryLoadFromCache(string cachePath, string expectedHash)
+    {
+        try
+        {
+            if (!File.Exists(cachePath))
+            {
+                return false;
+            }
+
+            using FileStream fs = new(cachePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using BinaryReader reader = new(fs, Encoding.UTF8);
+
+            byte[] magic = reader.ReadBytes(4);
+            if (Encoding.ASCII.GetString(magic) != CacheMagic)
+            {
+                return false;
+            }
+
+            byte version = reader.ReadByte();
+            if (version != CacheVersion)
+            {
+                return false;
+            }
+
+            string storedHash = reader.ReadString();
+            if (storedHash != expectedHash)
+            {
+                return false;
+            }
+
+            int lineCount = reader.ReadInt32();
+            if (lineCount < 0 || lineCount > 100_000_000)
+            {
+                return false;
+            }
+
+            long[] offsets = new long[lineCount];
+            for (int i = 0; i < lineCount; i++)
+            {
+                offsets[i] = reader.ReadInt64();
+            }
+
+            int[] lengths = new int[lineCount];
+            for (int i = 0; i < lineCount; i++)
+            {
+                lengths[i] = reader.ReadInt32();
+            }
+
+            _lineOffsets = offsets;
+            _lineLengths = lengths;
+            FileHash = storedHash;
+            LoadedFromCache = true;
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public void SaveToCache(string cachePath)
+    {
+        try
+        {
+            string cacheDir = Path.GetDirectoryName(cachePath);
+            if (!string.IsNullOrEmpty(cacheDir) && !Directory.Exists(cacheDir))
+            {
+                Directory.CreateDirectory(cacheDir);
+            }
+
+            using FileStream fs = new(cachePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            using BinaryWriter writer = new(fs, Encoding.UTF8);
+
+            writer.Write(Encoding.ASCII.GetBytes(CacheMagic));
+            writer.Write(CacheVersion);
+            writer.Write(FileHash ?? "");
+            writer.Write(_lineOffsets?.Length ?? 0);
+            if (_lineOffsets is not null)
+            {
+                foreach (long offset in _lineOffsets)
+                {
+                    writer.Write(offset);
+                }
+            }
+
+            if (_lineLengths is not null)
+            {
+                foreach (int length in _lineLengths)
+                {
+                    writer.Write(length);
+                }
+            }
+        }
+        catch
+        {
+            // Cache write failure is non-fatal
+        }
+    }
+
     public void BuildIndex()
     {
+        FileHash = ComputeFileHash(FilePath);
+        LoadedFromCache = false;
+
         var offsets = new List<long>();
         var lengths = new List<int>();
 
