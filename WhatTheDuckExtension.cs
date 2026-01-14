@@ -7,9 +7,6 @@ using System.IO;
 
 namespace WhatTheDuck;
 
-/// <summary>
-/// WhatTheDuck Extension
-/// </summary>
 public class WhatTheDuckExtension : Extension
 {
     private string SettingsFilePath => $"{Program.DataDir}/WhatTheDuckSettings.json";
@@ -27,22 +24,27 @@ public class WhatTheDuckExtension : Extension
     {
         LoadSettings();
 
-        Logs.Info($"WhatTheDuck Extension initializing (large file threshold: {WildcardHandler.LargeFileSizeThreshold}MB)...");
+        string datadumpStatus = DatadumpManager.IsActive
+            ? $"enabled, folder: {DatadumpManager.DatadumpFolder}"
+            : "disabled";
+        Logs.Info($"WhatTheDuck Extension initializing (datadump: {datadumpStatus})...");
 
+        DatadumpManager.Initialize();
         WildcardHandler.Initialize();
 
         API.RegisterAPICall(WhatTheDuckGetSettings, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(WhatTheDuckSaveSettings, true, Permissions.FundamentalGenerateTabAccess);
+        API.RegisterAPICall(WhatTheDuckRefreshDatadump, true, Permissions.FundamentalGenerateTabAccess);
     }
 
     public override void OnShutdown()
     {
+        DatadumpManager.Shutdown();
         WildcardHandler.Shutdown();
     }
 
     #region Settings Management
 
-    /// <summary>Loads settings from the settings file.</summary>
     private void LoadSettings()
     {
         try
@@ -51,13 +53,17 @@ public class WhatTheDuckExtension : Extension
             {
                 string json = File.ReadAllText(SettingsFilePath);
                 JObject settings = JObject.Parse(json);
-                if (settings.TryGetValue("largeFileSizeThreshold", out JToken thresholdToken))
-                {
-                    WildcardHandler.LargeFileSizeThreshold = thresholdToken.Value<long>();
-                }
                 if (settings.TryGetValue("keyboardNavigationEnabled", out JToken keyboardNavToken))
                 {
                     KeyboardNavigationEnabled = keyboardNavToken.Value<bool>();
+                }
+                if (settings.TryGetValue("datadumpEnabled", out JToken datadumpEnabledToken))
+                {
+                    DatadumpManager.Enabled = datadumpEnabledToken.Value<bool>();
+                }
+                if (settings.TryGetValue("datadumpFolder", out JToken datadumpFolderToken))
+                {
+                    DatadumpManager.DatadumpFolder = datadumpFolderToken.Value<string>();
                 }
 
                 foreach (var setting in settings.Properties())
@@ -72,15 +78,15 @@ public class WhatTheDuckExtension : Extension
         }
     }
 
-    /// <summary>Saves settings to the settings file.</summary>
     private void SaveSettings()
     {
         try
         {
             JObject settings = new()
             {
-                ["largeFileSizeThreshold"] = WildcardHandler.LargeFileSizeThreshold,
-                ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled
+                ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
+                ["datadumpEnabled"] = DatadumpManager.Enabled,
+                ["datadumpFolder"] = DatadumpManager.DatadumpFolder
             };
             File.WriteAllText(SettingsFilePath, settings.ToString());   
 
@@ -99,41 +105,41 @@ public class WhatTheDuckExtension : Extension
 
     #region API Endpoints
 
-    /// <summary>API endpoint to get current settings.</summary>
     public async Task<JObject> WhatTheDuckGetSettings(Session session)
     {
         return new JObject
         {
             ["success"] = true,
-            ["largeFileSizeThreshold"] = WildcardHandler.LargeFileSizeThreshold,
-            ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled
+            ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
+            ["datadumpEnabled"] = DatadumpManager.Enabled,
+            ["datadumpFolder"] = DatadumpManager.DatadumpFolder,
+            ["datadumpCount"] = DatadumpManager.Count,
+            ["datadumpActive"] = DatadumpManager.IsActive,
+            ["modifiedPlaceholders"] = new JArray(DatadumpManager.GetModifiedPlaceholders())
         };
     }
 
-    /// <summary>API endpoint to save settings.</summary>
-    public async Task<JObject> WhatTheDuckSaveSettings(Session session, long largeFileSizeThreshold, bool keyboardNavigationEnabled)
+    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool datadumpEnabled = false, string datadumpFolder = "")
     {
         try
         {
-            if (largeFileSizeThreshold < 1)
-            {
-                return new JObject
-                {
-                    ["success"] = false,
-                    ["error"] = "Threshold must be at least 1 MB"
-                };
-            }
-
-            WildcardHandler.LargeFileSizeThreshold = largeFileSizeThreshold;
             KeyboardNavigationEnabled = keyboardNavigationEnabled;
+            DatadumpManager.Enabled = datadumpEnabled;
+            DatadumpManager.DatadumpFolder = datadumpFolder ?? "";
+            DatadumpManager.SyncPlaceholders();
             SaveSettings();
             WildcardHandler.OnSettingsChanged();
 
-            Logs.Info($"WhatTheDuck: Settings updated - threshold: {largeFileSizeThreshold}MB, keyboard navigation: {keyboardNavigationEnabled}");
+            string datadumpStatus = DatadumpManager.IsActive
+                ? $"enabled, folder: {DatadumpManager.DatadumpFolder}"
+                : "disabled";
+            Logs.Info($"WhatTheDuck: Settings updated - datadump: {datadumpStatus}, keyboard navigation: {keyboardNavigationEnabled}");
 
             return new JObject
             {
-                ["success"] = true
+                ["success"] = true,
+                ["datadumpActive"] = DatadumpManager.IsActive,
+                ["datadumpCount"] = DatadumpManager.Count
             };
         }
         catch (Exception ex)
@@ -144,6 +150,30 @@ public class WhatTheDuckExtension : Extension
                 ["error"] = ex.Message
             };
         }
+    }
+
+    public async Task<JObject> WhatTheDuckRefreshDatadump(Session session)
+    {
+        var (success, fileCount, message, error) = DatadumpManager.Refresh();
+
+        if (success)
+        {
+            var modifiedPlaceholders = DatadumpManager.GetModifiedPlaceholders();
+
+            return new JObject
+            {
+                ["success"] = true,
+                ["datadumpCount"] = fileCount,
+                ["message"] = message,
+                ["modifiedPlaceholders"] = new JArray(modifiedPlaceholders)
+            };
+        }
+
+        return new JObject
+        {
+            ["success"] = false,
+            ["error"] = error
+        };
     }
 
     #endregion

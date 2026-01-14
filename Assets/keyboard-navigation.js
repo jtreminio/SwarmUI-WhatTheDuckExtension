@@ -10,7 +10,7 @@
 const keyboardNavigation = (() => {
     const STATE_KEY = "__keyboardNavigation";
 
-    if (window[STATE_KEY]?.observer) {
+    if (window[STATE_KEY]?.attached) {
         return;
     }
 
@@ -19,7 +19,6 @@ const keyboardNavigation = (() => {
         lastDeletePress: 0,
         deleteTimer: null,
         handler: null,
-        observer: null,
     });
 
     const DELETE_DOUBLE_TAP_TIMEOUT = 500;
@@ -193,13 +192,6 @@ const keyboardNavigation = (() => {
 
         state.attached = true;
     };
-
-    state.observer = new MutationObserver(() => {});
-
-    state.observer.observe(document.documentElement || document.body, {
-        childList: true,
-        subtree: true,
-    });
 
     attachListeners();
 });

@@ -2,28 +2,15 @@ using FreneticUtilities.FreneticExtensions;
 using SwarmUI.Core;
 using SwarmUI.Text2Image;
 using SwarmUI.Utils;
-using System.IO;
 
 namespace WhatTheDuck;
 
-/// <summary>
-/// Handles wildcard processing for WhatTheDuck extension.
-/// Provides optimized handling for large wildcard files using lazy loading.
-/// </summary>
 public static class WildcardHandler
 {
-    /// <summary>Threshold in bytes above which a wildcard file is considered "large" and uses lazy loading.</summary>
-    public static long LargeFileSizeThreshold = 5;
-
-    /// <summary>Store the original wildcard processor so we can delegate to it for small files.</summary>
     private static Func<string, T2IPromptHandling.PromptTagContext, string> OriginalWildcardProcessor;
 
-    /// <summary>Store the original length estimator.</summary>
     private static Func<string, T2IPromptHandling.PromptTagContext, string> OriginalLengthEstimator;
 
-    /// <summary>
-    /// Initializes the wildcard handler by capturing original processors and installing overrides.
-    /// </summary>
     public static void Initialize()
     {
         if (T2IPromptHandling.PromptTagProcessors.TryGetValue("wildcard", out var origProcessor))
@@ -39,43 +26,24 @@ public static class WildcardHandler
         T2IPromptHandling.PromptTagProcessors["wc"] = WildcardProcessor;
         T2IPromptHandling.PromptTagLengthEstimators["wildcard"] = WildcardLengthEstimator;
         T2IPromptHandling.PromptTagLengthEstimators["wc"] = WildcardLengthEstimator;
-
-        // Hook into the model refresh event to clear our cache
-        Program.ModelRefreshEvent += LazyWildcardManager.ClearCache;
+        Program.ModelRefreshEvent += DatadumpManager.ClearCache;
     }
 
-    /// <summary>
-    /// Shuts down the wildcard handler, unhooking events.
-    /// </summary>
     public static void Shutdown()
     {
-        Program.ModelRefreshEvent -= LazyWildcardManager.ClearCache;
+        Program.ModelRefreshEvent -= DatadumpManager.ClearCache;
     }
 
-    /// <summary>
-    /// Called when settings change to clear cached data.
-    /// </summary>
     public static void OnSettingsChanged()
     {
-        LazyWildcardManager.ClearCache();
+        DatadumpManager.ClearCache();
     }
 
-    /// <summary>Checks if a wildcard file is considered "large" based on file size.</summary>
-    public static bool IsLargeWildcard(string card)
+    public static bool IsDatadumpWildcard(string card)
     {
-        string filePath = $"{WildcardsHelper.Folder}/{card}.txt";
-        try
-        {
-            FileInfo fileInfo = new(filePath);
-            return fileInfo.Exists && fileInfo.Length >= LargeFileSizeThreshold * 1024 * 1024;
-        }
-        catch
-        {
-            return false;
-        }
+        return DatadumpManager.GetDatadumpPath(card) is not null;
     }
 
-    /// <summary>Custom wildcard processor that handles large files efficiently.</summary>
     private static string WildcardProcessor(string data, T2IPromptHandling.PromptTagContext context)
     {
         data = context.Parse(data);
@@ -89,21 +57,18 @@ public static class WildcardHandler
             return null;
         }
 
-        if (IsLargeWildcard(card))
+        if (DatadumpManager.GetDatadumpPath(card) is not null)
         {
-            string filePath = $"{WildcardsHelper.Folder}/{card}.txt";
-            return ProcessLargeWildcard(data, dataParts, card, filePath, context);
+            return ProcessDatadumpWildcard(data, dataParts, card, context);
         }
 
         return OriginalWildcardProcessor(data, context);
     }
 
-    /// <summary>Process a large wildcard file using lazy line indexing.</summary>
-    private static string ProcessLargeWildcard(
+    private static string ProcessDatadumpWildcard(
         string data,
         string[] dataParts,
         string card,
-        string filePath,
         T2IPromptHandling.PromptTagContext context)
     {
         HashSet<string> exclude = [];
@@ -126,9 +91,9 @@ public static class WildcardHandler
         List<string> usedWildcards = context.Input.ExtraMeta.GetOrCreate("used_wildcards", () => new List<string>()) as List<string>;
         usedWildcards.Add(card);
 
-        LazyWildcard lazyWildcard = LazyWildcardManager.GetOrCreate(card, filePath);
+        DatadumpCard datadumpCard = DatadumpManager.GetOrCreateIndex(card);
 
-        if (lazyWildcard.LineCount == 0)
+        if (datadumpCard is null || datadumpCard.LineCount == 0)
         {
             return "";
         }
@@ -147,14 +112,14 @@ public static class WildcardHandler
             {
                 if (context.Input.Get(T2IParamTypes.WildcardSeedBehavior, "Random") == "Index")
                 {
-                    index = context.Input.GetWildcardSeed() % lazyWildcard.LineCount;
+                    index = context.Input.GetWildcardSeed() % datadumpCard.LineCount;
                 }
                 else
                 {
-                    index = context.Input.GetWildcardRandom().Next(lazyWildcard.LineCount);
+                    index = context.Input.GetWildcardRandom().Next(datadumpCard.LineCount);
                 }
 
-                choice = lazyWildcard.GetLine(index);
+                choice = datadumpCard.GetLine(index);
                 attempts++;
 
                 if (attempts >= maxAttempts)
@@ -171,7 +136,6 @@ public static class WildcardHandler
         return result.Trim();
     }
 
-    /// <summary>Custom length estimator for wildcards.</summary>
     private static string WildcardLengthEstimator(string data, T2IPromptHandling.PromptTagContext context)
     {
         string card = T2IParamTypes.GetBestInList(data.Before(','), WildcardsHelper.ListFiles);
@@ -180,11 +144,11 @@ public static class WildcardHandler
             return "";
         }
 
-        if (IsLargeWildcard(card))
+        if (IsDatadumpWildcard(card))
         {
-            // For large files, we can't efficiently compute max length
+            // For datadump files, we can't efficiently compute max length
             // Return a reasonable placeholder
-            return "[large wildcard]";
+            return "[datadump]";
         }
 
         return OriginalLengthEstimator(data, context);
