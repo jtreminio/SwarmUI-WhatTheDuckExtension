@@ -25,11 +25,13 @@ const keyboardNavigation = (() => {
 
     const isEditableElement = (element) => {
         if (!element) return false;
-
-        const tagName = (element.tagName || "").toLowerCase();
-        const editableTags = ["input", "textarea", "select"];
-
-        return element.isContentEditable || editableTags.includes(tagName);
+        const tag = element.tagName;
+        return (
+            element.isContentEditable
+            || tag === "INPUT"
+            || tag === "TEXTAREA"
+            || tag === "SELECT"
+        );
     };
 
     const suppressEvent = (event) => {
@@ -148,36 +150,31 @@ const keyboardNavigation = (() => {
 
     state.handler = (event) => {
         if (event.repeat) return;
-
         if (isEditableElement(event.target)) return;
 
-        const key = (event.key || "").toLowerCase();
-        const supportedKeys = ["a", "d", "s", "x"];
-
-        if (!supportedKeys.includes(key)) return;
+        const key = event.key;
+        if (
+            key !== "a" && key !== "A" && key !== "d" && key !== "D" &&
+            key !== "s" && key !== "S" && key !== "x" && key !== "X"
+        ) return;
 
         suppressEvent(event);
 
-        if (event.type !== "keydown") return;
-
-        if (key === "a") {
+        if (key === "a" || key === "A") {
             dispatchArrowKey("left");
             return;
         }
-
-        if (key === "d") {
+        if (key === "d" || key === "D") {
             dispatchArrowKey("right");
             return;
         }
 
         const context = getUIContext();
-
-        if (key === "s") {
+        if (key === "s" || key === "S") {
             simulateClick(context.getStarButton());
             return;
         }
-
-        if (key === "x") {
+        if (key === "x" || key === "X") {
             handleDeleteKey(context);
         }
     };
@@ -185,10 +182,7 @@ const keyboardNavigation = (() => {
     const attachListeners = () => {
         if (state.attached) return;
 
-        const eventTypes = ["keydown", "keyup", "keypress"];
-        eventTypes.forEach((eventType) => {
-            document.addEventListener(eventType, state.handler, true);
-        });
+        document.addEventListener("keydown", state.handler, true);
 
         state.attached = true;
     };
