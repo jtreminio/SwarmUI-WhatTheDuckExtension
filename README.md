@@ -14,6 +14,7 @@ Adds keyboard shortcuts for image navigation and actions:
 - **D** - Navigate to next image
 - **S** - Toggle star/favorite on current image
 - **X** - Delete current image (double-tap required within 500ms)
+- **Q** - Delete current image (SINGLE-tap)
 
 Can be enabled/disabled in the settings panel.
 

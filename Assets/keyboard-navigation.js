@@ -6,6 +6,7 @@
  * - D: Navigate to next image (right arrow)
  * - S: Toggle star/favorite on current image
  * - X: Delete current image (double-tap required within 500ms)
+ * - Q: Delete current image (single press)
  */
 const keyboardNavigation = (() => {
     const STATE_KEY = "__keyboardNavigation";
@@ -155,7 +156,8 @@ const keyboardNavigation = (() => {
         const key = event.key;
         if (
             key !== "a" && key !== "A" && key !== "d" && key !== "D" &&
-            key !== "s" && key !== "S" && key !== "x" && key !== "X"
+            key !== "s" && key !== "S" && key !== "x" && key !== "X" &&
+            key !== "q" && key !== "Q"
         ) return;
 
         suppressEvent(event);
@@ -176,6 +178,10 @@ const keyboardNavigation = (() => {
         }
         if (key === "x" || key === "X") {
             handleDeleteKey(context);
+            return;
+        }
+        if (key === "q" || key === "Q") {
+            simulateClick(context.getDeleteButton());
         }
     };
 
