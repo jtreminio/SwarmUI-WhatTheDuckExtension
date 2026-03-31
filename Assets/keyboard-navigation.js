@@ -8,7 +8,7 @@
  * - X: Delete current image (double-tap required within 500ms)
  * - Q: Delete current image (single press)
  */
-const keyboardNavigation = (() => {
+const WhatTheDuckKeyboardNavigation = (() => {
     const STATE_KEY = "__keyboardNavigation";
 
     if (window[STATE_KEY]?.attached) {
