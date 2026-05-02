@@ -60,10 +60,12 @@ const WhatTheDuckKeyboardNavigation = (() => {
         document.dispatchEvent(event);
     };
 
-    const simulateClick = (element) => {
+    /** @param {{shiftKey?: boolean}} [modifiers] Pass shiftKey for "hold Shift to bypass" delete confirmation. */
+    const simulateClick = (element, modifiers = {}) => {
         if (!element) return false;
 
-        const eventOptions = { bubbles: true, cancelable: true, view: window };
+        let shiftKey = !!modifiers.shiftKey;
+        let eventOptions = { bubbles: true, cancelable: true, view: window, shiftKey };
 
         try {
             element.dispatchEvent(new PointerEvent("pointerdown", eventOptions));
@@ -124,7 +126,7 @@ const WhatTheDuckKeyboardNavigation = (() => {
         };
     };
 
-    const handleDeleteKey = (context) => {
+    const handleDeleteKey = (keydownEvent, context) => {
         const now = Date.now();
         const timeSinceLastPress = now - state.lastDeletePress;
 
@@ -134,7 +136,7 @@ const WhatTheDuckKeyboardNavigation = (() => {
                 state.deleteTimer = null;
             }
             state.lastDeletePress = 0;
-            simulateClick(context.getDeleteButton());
+            simulateClick(context.getDeleteButton(), { shiftKey: keydownEvent.shiftKey });
         } else {
             state.lastDeletePress = now;
 
@@ -177,11 +179,11 @@ const WhatTheDuckKeyboardNavigation = (() => {
             return;
         }
         if (key === "x" || key === "X") {
-            handleDeleteKey(context);
+            handleDeleteKey(event, context);
             return;
         }
         if (key === "q" || key === "Q") {
-            simulateClick(context.getDeleteButton());
+            simulateClick(context.getDeleteButton(), { shiftKey: event.shiftKey });
         }
     };
 
