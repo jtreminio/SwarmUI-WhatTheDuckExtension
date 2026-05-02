@@ -7,6 +7,7 @@
  * - S: Toggle star/favorite on current image
  * - X: Delete current image (double-tap required within 500ms)
  * - Q: Delete current image (single press)
+ * - E: End / interrupt current generation(s) (same as the interrupt button)
  */
 const WhatTheDuckKeyboardNavigation = (() => {
     const STATE_KEY = "__keyboardNavigation";
@@ -98,6 +99,20 @@ const WhatTheDuckKeyboardNavigation = (() => {
         }) || null;
     };
 
+    const triggerInterrupt = () => {
+        const altBtn = document.getElementById("alt_interrupt_button");
+        if (altBtn) {
+            simulateClick(altBtn);
+            return;
+        }
+        const simpleBtn = document.getElementById("simple_interrupt_button");
+        if (simpleBtn) {
+            simulateClick(simpleBtn);
+            return;
+        }
+        mainGenHandler.doInterrupt();
+    };
+
     const getUIContext = () => {
         const modalContainer = document.querySelector("#imageview_modal_imagewrap");
 
@@ -159,7 +174,7 @@ const WhatTheDuckKeyboardNavigation = (() => {
         if (
             key !== "a" && key !== "A" && key !== "d" && key !== "D" &&
             key !== "s" && key !== "S" && key !== "x" && key !== "X" &&
-            key !== "q" && key !== "Q"
+            key !== "q" && key !== "Q" && key !== "e" && key !== "E"
         ) return;
 
         suppressEvent(event);
@@ -170,6 +185,10 @@ const WhatTheDuckKeyboardNavigation = (() => {
         }
         if (key === "d" || key === "D") {
             dispatchArrowKey("right");
+            return;
+        }
+        if (key === "e" || key === "E") {
+            triggerInterrupt();
             return;
         }
 
