@@ -33,7 +33,7 @@ Handles very large wildcard files (gigabytes in size) without impacting SwarmUI'
 
 1. Create a directory for your large wildcard files (e.g., `/data/datadump/`)
 2. Place your large `.txt` wildcard files in this directory (subdirectories are supported)
-3. Go to **Utilities → WhatTheDuck Settings**
+3. On the Generate page, open the **Tools** tab and select **WhatTheDuck Settings** from the tool dropdown (extension tools are usually near the bottom of the list)
 4. Check **Enable Datadump**
 5. Enter the full path to your Datadump directory in **Datadump Path**
 6. Click **Save Settings**
@@ -75,7 +75,7 @@ Wildcards Directory (managed by SwarmUI):
 
 ## Configuration
 
-Access settings via **Utilities → WhatTheDuck Settings** in the SwarmUI interface.
+Access settings from the **Tools** tab on the Generate page: choose **WhatTheDuck Settings** in the tool dropdown (extension entries are typically near the bottom of that list).
 
 ## License
 
