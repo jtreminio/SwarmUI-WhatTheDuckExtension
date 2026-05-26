@@ -122,3 +122,25 @@
     padding-top: 0.5rem;
     border-top: 1px solid rgba(255, 193, 7, 0.3);
 }
+
+.image-block.wtd-compare-marked {
+    position: relative;
+    outline: 3px dashed var(--star, #f0c000);
+    outline-offset: -3px;
+    box-shadow: 0 0 6px 2px rgba(240, 192, 0, 0.55);
+}
+
+.image-block.wtd-compare-marked::after {
+    content: "⇄";
+    position: absolute;
+    top: 0.15rem;
+    left: 0.3rem;
+    z-index: 5;
+    font-size: 0.95rem;
+    line-height: 1;
+    padding: 0.1rem 0.25rem;
+    border-radius: 4px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}

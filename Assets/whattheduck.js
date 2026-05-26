@@ -41,6 +41,7 @@ class WhatTheDuck
                                     <br>• <code>D</code> - Navigate to next image
                                     <br>• <code>S</code> - Toggle star/favorite
                                     <br>• <code>X</code> - Delete image (double-tap required)
+                                    <br>• <code>C</code> - Compare: mark a batch item, press again on another to open compare (<code>Esc</code> to clear)
                                 </span>
                                 <br><b>Note:</b> Changes take effect after page reload.
                             </div>
@@ -148,6 +149,9 @@ class WhatTheDuck
                 // Initialize keyboard navigation if enabled
                 if (this.keyboardNavigationEnabled && typeof WhatTheDuckKeyboardNavigation === 'function') {
                     WhatTheDuckKeyboardNavigation();
+                }
+                if (this.keyboardNavigationEnabled && typeof WhatTheDuckBatchCompare === 'function') {
+                    WhatTheDuckBatchCompare();
                 }
             }
         });
