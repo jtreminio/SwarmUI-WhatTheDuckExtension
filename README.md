@@ -16,6 +16,16 @@ Adds keyboard shortcuts for image navigation and actions:
 - **X** - Delete current image (double-tap required within 500ms)
 - **Q** - Delete current image (SINGLE-tap)
 
+In the comparison modal, number keys (or their Shift symbols) switch the view:
+
+- **1** / **!** - Side by Side
+- **2** / **@** - Horizontal Slide
+- **3** / **#** - Vertical Slide
+- **4** / **$** - Transparency Overlay
+- **5** / **%** - Single View
+- **6** / **^** - Switch Image
+- **7** / **&** - Toggle Metadata
+
 Can be enabled/disabled in the settings panel.
 
 ### Datadump - Large Wildcard File Support

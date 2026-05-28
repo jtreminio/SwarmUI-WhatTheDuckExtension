@@ -42,6 +42,7 @@ class WhatTheDuck
                                     <br>• <code>S</code> - Toggle star/favorite
                                     <br>• <code>X</code> - Delete image (double-tap required)
                                     <br>• <code>C</code> - Compare: mark a batch item, press again on another to open compare (<code>Esc</code> to clear)
+                                    <br>• <code>1</code>-<code>7</code> (or Shift symbols <code>!@#$%^&</code>) - In the comparison modal, switch view: Side by Side, Horizontal Slide, Vertical Slide, Transparency Overlay, Single View, Switch Image, Toggle Metadata
                                 </span>
                                 <br><b>Note:</b> Changes take effect after page reload.
                             </div>
@@ -152,6 +153,9 @@ class WhatTheDuck
                 }
                 if (this.keyboardNavigationEnabled && typeof WhatTheDuckBatchCompare === 'function') {
                     WhatTheDuckBatchCompare();
+                }
+                if (this.keyboardNavigationEnabled && typeof WhatTheDuckCompareShortcuts === 'function') {
+                    WhatTheDuckCompareShortcuts();
                 }
             }
         });

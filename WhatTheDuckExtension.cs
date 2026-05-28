@@ -18,6 +18,7 @@ public class WhatTheDuckExtension : Extension
         ScriptFiles.Add("Assets/whattheduck.js");
         ScriptFiles.Add("Assets/keyboard-navigation.js");
         ScriptFiles.Add("Assets/batch-compare.js");
+        ScriptFiles.Add("Assets/compare-shortcuts.js");
         StyleSheetFiles.Add("Assets/whattheduck.css");
     }
 
