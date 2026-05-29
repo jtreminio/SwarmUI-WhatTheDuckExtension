@@ -2,6 +2,8 @@ using SwarmUI.Core;
 using SwarmUI.Utils;
 using SwarmUI.WebAPI;
 using SwarmUI.Accounts;
+using Newtonsoft.Json.Linq;
+using System.IO;
 
 namespace WhatTheDuck;
 

@@ -1,5 +1,7 @@
+using FreneticUtilities.FreneticExtensions;
 using SwarmUI.Core;
 using SwarmUI.Utils;
+using System.IO;
 
 namespace WhatTheDuck;
 
