@@ -1,19 +1,394 @@
-class WhatTheDuck
-{
-    constructor()
-    {
-        this.keyboardNavigationEnabled = true;
-        this.datadumpEnabled = false;
-        this.datadumpFolder = '';
-
-        this.init();
+"use strict";
+(() => {
+  // frontend/dom.ts
+  var isEditableElement = (target) => {
+    const element = target;
+    if (!element) {
+      return false;
     }
+    const tag = element.tagName;
+    return element.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  };
+  var suppressEvent = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === "function") {
+      event.stopImmediatePropagation();
+    }
+  };
 
-    init()
-    {
-        let toolDiv = registerNewTool('whattheduck', 'WhatTheDuck Settings');
+  // frontend/batchCompare.ts
+  var MARKED_CLASS = "wtd-compare-marked";
+  var BATCH_ID = "current_image_batch";
+  var attached = false;
+  var hovered = null;
+  var markedBlock = null;
+  var isComparable = (block) => {
+    if (!block || !document.body.contains(block)) {
+      return false;
+    }
+    if (!block.dataset?.src) {
+      return false;
+    }
+    if (block.classList.contains("image-block-placeholder") || block.classList.contains("image-block-failed")) {
+      return false;
+    }
+    const mediaType = getMediaType(block.dataset.src);
+    return mediaType === "image" || mediaType === "video";
+  };
+  var getTargetBlock = () => {
+    if (isComparable(hovered)) {
+      return hovered;
+    }
+    const batch = document.getElementById(BATCH_ID);
+    if (batch) {
+      const current = batch.querySelector(
+        ".image-block.image-block-current"
+      );
+      if (isComparable(current)) {
+        return current;
+      }
+    }
+    return null;
+  };
+  var blockToItem = (block) => ({
+    src: block.dataset.src,
+    mediaType: getMediaType(block.dataset.src)
+  });
+  var clearMark = () => {
+    if (markedBlock) {
+      markedBlock.classList.remove(MARKED_CLASS);
+    }
+    markedBlock = null;
+  };
+  var markBlock = (block) => {
+    clearMark();
+    markedBlock = block;
+    block.classList.add(MARKED_CLASS);
+  };
+  var launchCompare = (marked, target) => {
+    const items = [blockToItem(marked), blockToItem(target)];
+    const valid = imageCompareHelper.evaluateSelection(items);
+    if (valid.state !== "ready") {
+      if (typeof showError === "function") {
+        showError(valid.reason || "Cannot compare current selection.");
+      }
+      clearMark();
+      return;
+    }
+    clearMark();
+    if (imageCompareHelper.isShowingPair(items[0], items[1])) {
+      return;
+    }
+    imageCompareHelper.reset();
+    imageCompareHelper.showComparison(items[0], items[1]);
+  };
+  var handleCompareKey = () => {
+    if (typeof imageCompareHelper === "undefined" || imageCompareHelper.isOpen()) {
+      return false;
+    }
+    const target = getTargetBlock();
+    if (!target) {
+      return false;
+    }
+    if (markedBlock && !document.body.contains(markedBlock)) {
+      clearMark();
+    }
+    if (!markedBlock) {
+      markBlock(target);
+      return true;
+    }
+    if (markedBlock === target) {
+      clearMark();
+      return true;
+    }
+    launchCompare(markedBlock, target);
+    return true;
+  };
+  var handleKeydown = (event) => {
+    if (event.repeat) {
+      return;
+    }
+    if (event.ctrlKey || event.altKey || event.metaKey) {
+      return;
+    }
+    if (isEditableElement(event.target)) {
+      return;
+    }
+    const key = event.key;
+    if (key === "Escape") {
+      if (markedBlock) {
+        clearMark();
+      }
+      return;
+    }
+    if (key !== "c" && key !== "C") {
+      return;
+    }
+    if (handleCompareKey()) {
+      suppressEvent(event);
+    }
+  };
+  var handleMouseover = (event) => {
+    const target = event.target;
+    const block = target?.closest?.(".image-block");
+    hovered = block?.closest(`#${BATCH_ID}`) ? block : null;
+  };
+  var initBatchCompare = () => {
+    if (attached) {
+      return;
+    }
+    document.addEventListener("keydown", handleKeydown, true);
+    document.addEventListener("mouseover", handleMouseover, true);
+    attached = true;
+  };
 
-        toolDiv.innerHTML = `
+  // frontend/compareShortcuts.ts
+  var MODAL_ID = "image_compare_modal";
+  var KEY_TO_SELECTOR = {
+    "1": '[data-compare-mode="side"]',
+    "!": '[data-compare-mode="side"]',
+    "2": '[data-compare-mode="slide_horizontal"]',
+    "@": '[data-compare-mode="slide_horizontal"]',
+    "3": '[data-compare-mode="slide_vertical"]',
+    "#": '[data-compare-mode="slide_vertical"]',
+    "4": '[data-compare-mode="transparency"]',
+    $: '[data-compare-mode="transparency"]',
+    "5": '[data-compare-mode="single"]',
+    "%": '[data-compare-mode="single"]',
+    "6": "#image_compare_swap_button",
+    "^": "#image_compare_swap_button",
+    "7": "#image_compare_metadata_toggle_button",
+    "&": "#image_compare_metadata_toggle_button"
+  };
+  var attached2 = false;
+  var isModalOpen = () => typeof imageCompareHelper !== "undefined" && imageCompareHelper.isOpen();
+  var handleKeydown2 = (event) => {
+    if (event.repeat) {
+      return;
+    }
+    if (event.ctrlKey || event.altKey || event.metaKey) {
+      return;
+    }
+    if (isEditableElement(event.target)) {
+      return;
+    }
+    if (!isModalOpen()) {
+      return;
+    }
+    const selector = KEY_TO_SELECTOR[event.key];
+    if (!selector) {
+      return;
+    }
+    const modal = document.getElementById(MODAL_ID);
+    const button = modal?.querySelector(selector);
+    if (!button) {
+      return;
+    }
+    suppressEvent(event);
+    button.click();
+  };
+  var initCompareShortcuts = () => {
+    if (attached2) {
+      return;
+    }
+    document.addEventListener("keydown", handleKeydown2, true);
+    attached2 = true;
+  };
+
+  // frontend/keyboardNavigation.ts
+  var DELETE_DOUBLE_TAP_TIMEOUT = 500;
+  var attached3 = false;
+  var lastDeletePress = 0;
+  var deleteTimer = null;
+  var dispatchArrowKey = (direction) => {
+    const isLeft = direction === "left";
+    const key = isLeft ? "ArrowLeft" : "ArrowRight";
+    const keyCode = isLeft ? 37 : 39;
+    const event = new KeyboardEvent("keydown", {
+      key,
+      code: key,
+      keyCode,
+      which: keyCode,
+      bubbles: true,
+      cancelable: true
+    });
+    document.dispatchEvent(event);
+  };
+  var simulateClick = (element, modifiers = {}) => {
+    if (!element) {
+      return false;
+    }
+    const shiftKey = !!modifiers.shiftKey;
+    const eventOptions = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      shiftKey
+    };
+    try {
+      element.dispatchEvent(new PointerEvent("pointerdown", eventOptions));
+    } catch {
+    }
+    element.dispatchEvent(new MouseEvent("mousedown", eventOptions));
+    try {
+      element.dispatchEvent(new PointerEvent("pointerup", eventOptions));
+    } catch {
+    }
+    element.dispatchEvent(new MouseEvent("mouseup", eventOptions));
+    element.dispatchEvent(new MouseEvent("click", eventOptions));
+    return true;
+  };
+  var findDeleteButton = (container) => {
+    if (!container) {
+      return null;
+    }
+    const buttons = [
+      ...container.querySelectorAll("button, [role='button'], .basic-button")
+    ];
+    return buttons.find((button) => {
+      const text = (button.textContent || "").trim().toLowerCase();
+      return text === "delete" || text.includes("delete");
+    }) ?? null;
+  };
+  var triggerInterrupt = () => {
+    const altBtn = document.getElementById("alt_interrupt_button");
+    if (altBtn) {
+      simulateClick(altBtn);
+      return;
+    }
+    const simpleBtn = document.getElementById("simple_interrupt_button");
+    if (simpleBtn) {
+      simulateClick(simpleBtn);
+      return;
+    }
+    mainGenHandler.doInterrupt();
+  };
+  var getUIContext = () => {
+    const modalContainer = document.querySelector("#imageview_modal_imagewrap");
+    if (modalContainer) {
+      return {
+        getStarButton: () => document.querySelector(
+          ".imageview_popup_modal_undertext .basic-button.star-button"
+        ),
+        getDeleteButton: () => {
+          const container = modalContainer.querySelector(
+            ".image_fullview_extra_buttons"
+          ) || document.querySelector(".image_fullview_extra_buttons");
+          return findDeleteButton(container);
+        }
+      };
+    }
+    return {
+      getStarButton: () => document.querySelector(
+        ".current-image-buttons .basic-button.star-button"
+      ),
+      getDeleteButton: () => {
+        const container = document.querySelector(".current-image-buttons");
+        return findDeleteButton(container);
+      }
+    };
+  };
+  var handleDeleteKey = (keydownEvent, context) => {
+    const now = Date.now();
+    const timeSinceLastPress = now - lastDeletePress;
+    if (lastDeletePress && timeSinceLastPress <= DELETE_DOUBLE_TAP_TIMEOUT) {
+      if (deleteTimer) {
+        clearTimeout(deleteTimer);
+        deleteTimer = null;
+      }
+      lastDeletePress = 0;
+      simulateClick(context.getDeleteButton(), {
+        shiftKey: keydownEvent.shiftKey
+      });
+    } else {
+      lastDeletePress = now;
+      if (deleteTimer) {
+        clearTimeout(deleteTimer);
+      }
+      deleteTimer = setTimeout(() => {
+        lastDeletePress = 0;
+        deleteTimer = null;
+      }, DELETE_DOUBLE_TAP_TIMEOUT);
+    }
+  };
+  var handleKeydown3 = (event) => {
+    if (event.repeat) {
+      return;
+    }
+    if (event.ctrlKey || event.altKey || event.metaKey) {
+      return;
+    }
+    if (isEditableElement(event.target)) {
+      return;
+    }
+    const key = event.key;
+    if (key !== "a" && key !== "A" && key !== "d" && key !== "D" && key !== "s" && key !== "S" && key !== "x" && key !== "X" && key !== "q" && key !== "Q" && key !== "e" && key !== "E") {
+      return;
+    }
+    suppressEvent(event);
+    if (key === "a" || key === "A") {
+      dispatchArrowKey("left");
+      return;
+    }
+    if (key === "d" || key === "D") {
+      dispatchArrowKey("right");
+      return;
+    }
+    if (key === "e" || key === "E") {
+      triggerInterrupt();
+      return;
+    }
+    const context = getUIContext();
+    if (key === "s" || key === "S") {
+      simulateClick(context.getStarButton());
+      return;
+    }
+    if (key === "x" || key === "X") {
+      handleDeleteKey(event, context);
+      return;
+    }
+    if (key === "q" || key === "Q") {
+      simulateClick(context.getDeleteButton(), { shiftKey: event.shiftKey });
+    }
+  };
+  var initKeyboardNavigation = () => {
+    if (attached3) {
+      return;
+    }
+    document.addEventListener("keydown", handleKeydown3, true);
+    attached3 = true;
+  };
+
+  // frontend/settings.ts
+  var STATUS_TIMEOUT_MS = 5e3;
+  var escapeHtml = (text) => {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  };
+  var renderDatadumpStatus = (isActive, count) => isActive ? `<span class="whattheduck-datadump-active">✓ Active - ${count} datadump file(s) indexed</span>` : `<span class="whattheduck-datadump-inactive">○ Inactive - Enable and set path to activate</span>`;
+  var renderModifiedPlaceholders = (modifiedList) => {
+    if (!modifiedList || modifiedList.length === 0) {
+      return "";
+    }
+    const fileList = modifiedList.map((name) => `<li><code>${escapeHtml(name)}</code></li>`).join("");
+    return `
+            <div class="whattheduck-modified-header">
+                <span class="whattheduck-modified-icon">⚠️</span>
+                <span class="whattheduck-modified-title">Modified Placeholder Files (${modifiedList.length})</span>
+            </div>
+            <div class="whattheduck-modified-description">
+                The following wildcard files were originally placeholders but have been modified.
+                They will now use the local Wildcards content instead of the Datadump files:
+            </div>
+            <ul class="whattheduck-modified-list">${fileList}</ul>
+            <div class="whattheduck-modified-hint">
+                To restore datadump handling, delete these files from the Wildcards folder and click "Refresh Datadump".
+            </div>
+        `;
+  };
+  var renderSettingsForm = (state) => `
             <div class="whattheduck-settings">
                 <form id="whattheduck-form">
                     <div class="input-group input-group-open">
@@ -29,7 +404,7 @@ class WhatTheDuck
                                     <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_keyboard_nav', arguments[0])">?</span>
                                 </span>
                                 <label class="auto-checkbox">
-                                    <input type="checkbox" id="whattheduck-keyboard-nav" ${this.keyboardNavigationEnabled ? 'checked' : ''}>
+                                    <input type="checkbox" id="whattheduck-keyboard-nav" ${state.keyboardNavigationEnabled ? "checked" : ""}>
                                     <span class="auto-checkbox-label">Enable</span>
                                 </label>
                             </div>
@@ -63,7 +438,7 @@ class WhatTheDuck
                                     <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_datadump_enable', arguments[0])">?</span>
                                 </span>
                                 <label class="auto-checkbox">
-                                    <input type="checkbox" id="whattheduck-datadump-enabled" ${this.datadumpEnabled ? 'checked' : ''}>
+                                    <input type="checkbox" id="whattheduck-datadump-enabled" ${state.datadumpEnabled ? "checked" : ""}>
                                     <span class="auto-checkbox-label">Enable</span>
                                 </label>
                             </div>
@@ -84,7 +459,7 @@ class WhatTheDuck
                                         <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_datadump_folder', arguments[0])">?</span>
                                     </span>
                                 </label>
-                                <input class="auto-text" type="text" id="whattheduck-datadump-folder" value="${this.datadumpFolder}" placeholder="/path/to/datadump" autocomplete="off">
+                                <input class="auto-text" type="text" id="whattheduck-datadump-folder" value="${state.datadumpFolder}" placeholder="/path/to/datadump" autocomplete="off">
                             </div>
                             <div class="sui-popover sui-info-popover" id="popover_whattheduck_datadump_folder">
                                 <b>Datadump Path</b> (string):<br>
@@ -102,7 +477,7 @@ class WhatTheDuck
                             <div id="whattheduck-modified-placeholders" class="whattheduck-modified-report"></div>
 
                             <div class="whattheduck-datadump-actions">
-                                <button type="button" id="whattheduck-refresh-datadump" class="basic-button" onclick="refreshDatadump()">🔄 Refresh Datadump</button>
+                                <button type="button" id="whattheduck-refresh-datadump" class="basic-button">🔄 Refresh Datadump</button>
                                 <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_datadump_refresh', arguments[0])">?</span>
                             </div>
                             <div class="sui-popover sui-info-popover" id="popover_whattheduck_datadump_refresh">
@@ -124,150 +499,175 @@ class WhatTheDuck
                 </form>
             </div>
         `;
-
-        this.loadSettings();
-
-        document.getElementById('whattheduck-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.saveSettings();
-        });
+  var keyboardNavigationEnabled = true;
+  var datadumpEnabled = false;
+  var datadumpFolder = "";
+  var statusTimer = null;
+  var readChecked = (id) => document.getElementById(id)?.checked ?? false;
+  var readValue = (id) => document.getElementById(id)?.value ?? "";
+  var applyDatadumpStatus = (isActive, count) => {
+    const statusDiv = document.getElementById("whattheduck-datadump-status");
+    if (statusDiv) {
+      statusDiv.innerHTML = renderDatadumpStatus(isActive, count);
     }
-
-    loadSettings() {
-        genericRequest('WhatTheDuckGetSettings', {}, (data) => {
-            if (data.success) {
-                this.keyboardNavigationEnabled = data.keyboardNavigationEnabled;
-                this.datadumpEnabled = data.datadumpEnabled;
-                this.datadumpFolder = data.datadumpFolder || '';
-
-                document.getElementById('whattheduck-keyboard-nav').checked = data.keyboardNavigationEnabled;
-                document.getElementById('whattheduck-datadump-enabled').checked = data.datadumpEnabled;
-                document.getElementById('whattheduck-datadump-folder').value = data.datadumpFolder || '';
-
-                this.updateDatadumpStatus(data.datadumpActive, data.datadumpCount);
-                this.updateModifiedPlaceholders(data.modifiedPlaceholders || []);
-
-                // Initialize keyboard navigation if enabled
-                if (this.keyboardNavigationEnabled && typeof WhatTheDuckKeyboardNavigation === 'function') {
-                    WhatTheDuckKeyboardNavigation();
-                }
-                if (this.keyboardNavigationEnabled && typeof WhatTheDuckBatchCompare === 'function') {
-                    WhatTheDuckBatchCompare();
-                }
-                if (this.keyboardNavigationEnabled && typeof WhatTheDuckCompareShortcuts === 'function') {
-                    WhatTheDuckCompareShortcuts();
-                }
-            }
-        });
+  };
+  var applyModifiedPlaceholders = (modifiedList) => {
+    const reportDiv = document.getElementById(
+      "whattheduck-modified-placeholders"
+    );
+    if (!reportDiv) {
+      return;
     }
-
-    updateDatadumpStatus(isActive, count)
-    {
-        const statusDiv = document.getElementById('whattheduck-datadump-status');
-        if (isActive) {
-            statusDiv.innerHTML = `<span class="whattheduck-datadump-active">✓ Active - ${count} datadump file(s) indexed</span>`;
+    const html = renderModifiedPlaceholders(modifiedList);
+    reportDiv.innerHTML = html;
+    reportDiv.style.display = html ? "block" : "none";
+  };
+  var showStatus = (message, type) => {
+    const statusDiv = document.getElementById("whattheduck-status");
+    if (!statusDiv) {
+      return;
+    }
+    statusDiv.textContent = message;
+    statusDiv.className = `whattheduck-status whattheduck-status-${type}`;
+    if (statusTimer) {
+      clearTimeout(statusTimer);
+    }
+    statusTimer = setTimeout(() => {
+      statusDiv.textContent = "";
+      statusDiv.className = "whattheduck-status";
+      statusTimer = null;
+    }, STATUS_TIMEOUT_MS);
+  };
+  var loadSettings = () => {
+    genericRequest(
+      "WhatTheDuckGetSettings",
+      {},
+      (data) => {
+        if (!data.success) {
+          return;
+        }
+        keyboardNavigationEnabled = data.keyboardNavigationEnabled ?? false;
+        datadumpEnabled = data.datadumpEnabled ?? false;
+        datadumpFolder = data.datadumpFolder || "";
+        document.getElementById(
+          "whattheduck-keyboard-nav"
+        ).checked = keyboardNavigationEnabled;
+        document.getElementById(
+          "whattheduck-datadump-enabled"
+        ).checked = datadumpEnabled;
+        document.getElementById(
+          "whattheduck-datadump-folder"
+        ).value = datadumpFolder;
+        applyDatadumpStatus(
+          data.datadumpActive ?? false,
+          data.datadumpCount ?? 0
+        );
+        applyModifiedPlaceholders(data.modifiedPlaceholders || []);
+        if (keyboardNavigationEnabled) {
+          initKeyboardNavigation();
+          initBatchCompare();
+          initCompareShortcuts();
+        }
+      }
+    );
+  };
+  var saveSettings = () => {
+    const keyboardNav = readChecked("whattheduck-keyboard-nav");
+    const nextDatadumpEnabled = readChecked("whattheduck-datadump-enabled");
+    const nextDatadumpFolder = readValue("whattheduck-datadump-folder").trim();
+    genericRequest(
+      "WhatTheDuckSaveSettings",
+      {
+        keyboardNavigationEnabled: keyboardNav,
+        datadumpEnabled: nextDatadumpEnabled,
+        datadumpFolder: nextDatadumpFolder
+      },
+      (data) => {
+        if (data.success) {
+          keyboardNavigationEnabled = keyboardNav;
+          datadumpEnabled = nextDatadumpEnabled;
+          datadumpFolder = nextDatadumpFolder;
+          applyDatadumpStatus(
+            data.datadumpActive ?? false,
+            data.datadumpCount ?? 0
+          );
+          applyModifiedPlaceholders(data.modifiedPlaceholders || []);
+          showStatus(
+            "Settings saved! Reload page for keyboard navigation changes to take effect.",
+            "success"
+          );
         } else {
-            statusDiv.innerHTML = `<span class="whattheduck-datadump-inactive">○ Inactive - Enable and set path to activate</span>`;
+          showStatus(
+            `Failed to save settings: ${data.error || "Unknown error"}`,
+            "error"
+          );
         }
-    }
-
-    escapeHtml(text)
-    {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    updateModifiedPlaceholders(modifiedList)
-    {
-        const reportDiv = document.getElementById('whattheduck-modified-placeholders');
-
-        if (!modifiedList || modifiedList.length === 0) {
-            reportDiv.innerHTML = '';
-            reportDiv.style.display = 'none';
-            return;
+      }
+    );
+  };
+  var refreshDatadump = () => {
+    const refreshBtn = document.getElementById(
+      "whattheduck-refresh-datadump"
+    );
+    const originalText = refreshBtn.textContent;
+    refreshBtn.textContent = "⏳ Refreshing...";
+    refreshBtn.disabled = true;
+    genericRequest(
+      "WhatTheDuckRefreshDatadump",
+      {},
+      (data) => {
+        if (data.success) {
+          genericRequest(
+            "TriggerRefresh",
+            { refreshType: "wildcards" },
+            () => {
+              refreshBtn.textContent = originalText;
+              refreshBtn.disabled = false;
+              applyDatadumpStatus(true, data.datadumpCount ?? 0);
+              applyModifiedPlaceholders(
+                data.modifiedPlaceholders || []
+              );
+              showStatus(
+                data.message ?? "Datadump refreshed.",
+                "success"
+              );
+            }
+          );
+        } else {
+          refreshBtn.textContent = originalText;
+          refreshBtn.disabled = false;
+          showStatus(
+            `Refresh failed: ${data.error || "Unknown error"}`,
+            "error"
+          );
         }
-
-        reportDiv.style.display = 'block';
-
-        const fileList = modifiedList.map(name => `<li><code>${this.escapeHtml(name)}</code></li>`).join('');
-
-        reportDiv.innerHTML = `
-            <div class="whattheduck-modified-header">
-                <span class="whattheduck-modified-icon">⚠️</span>
-                <span class="whattheduck-modified-title">Modified Placeholder Files (${modifiedList.length})</span>
-            </div>
-            <div class="whattheduck-modified-description">
-                The following wildcard files were originally placeholders but have been modified.
-                They will now use the local Wildcards content instead of the Datadump files:
-            </div>
-            <ul class="whattheduck-modified-list">${fileList}</ul>
-            <div class="whattheduck-modified-hint">
-                To restore datadump handling, delete these files from the Wildcards folder and click "Refresh Datadump".
-            </div>
-        `;
+      }
+    );
+  };
+  var init = () => {
+    const toolDiv = registerNewTool("whattheduck", "WhatTheDuck Settings");
+    toolDiv.innerHTML = renderSettingsForm({
+      keyboardNavigationEnabled,
+      datadumpEnabled,
+      datadumpFolder
+    });
+    loadSettings();
+    const form = document.getElementById("whattheduck-form");
+    if (form) {
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        saveSettings();
+      });
     }
+    document.getElementById("whattheduck-refresh-datadump")?.addEventListener("click", refreshDatadump);
+  };
+  var whatTheDuck = {
+    init
+  };
 
-    saveSettings()
-    {
-        const keyboardNav = document.getElementById('whattheduck-keyboard-nav').checked;
-        const datadumpEnabled = document.getElementById('whattheduck-datadump-enabled').checked;
-        const datadumpFolder = document.getElementById('whattheduck-datadump-folder').value.trim();
-
-        genericRequest('WhatTheDuckSaveSettings', {
-            keyboardNavigationEnabled: keyboardNav,
-            datadumpEnabled: datadumpEnabled,
-            datadumpFolder: datadumpFolder
-        }, (data) => {
-            if (data.success) {
-                this.keyboardNavigationEnabled = keyboardNav;
-                this.datadumpEnabled = datadumpEnabled;
-                this.datadumpFolder = datadumpFolder;
-
-                this.updateDatadumpStatus(data.datadumpActive, data.datadumpCount);
-                this.showStatus('Settings saved! Reload page for keyboard navigation changes to take effect.', 'success');
-            } else {
-                this.showStatus('Failed to save settings: ' + (data.error || 'Unknown error'), 'error');
-            }
-        });
-    }
-
-    showStatus(message, type)
-    {
-        const statusDiv = document.getElementById('whattheduck-status');
-        statusDiv.textContent = message;
-        statusDiv.className = 'whattheduck-status whattheduck-status-' + type;
-
-        setTimeout(() => {
-            statusDiv.textContent = '';
-            statusDiv.className = 'whattheduck-status';
-        }, 5000);
-    }
-
-    refreshDatadump()
-    {
-        const refreshBtn = document.getElementById('whattheduck-refresh-datadump');
-        const originalText = refreshBtn.textContent;
-        refreshBtn.textContent = '⏳ Refreshing...';
-        refreshBtn.disabled = true;
-
-        genericRequest('WhatTheDuckRefreshDatadump', {}, (data) => {
-            if (data.success) {
-                genericRequest('TriggerRefresh', { refreshType: 'wildcards' }, () => {
-                    refreshBtn.textContent = originalText;
-                    refreshBtn.disabled = false;
-
-                    this.updateDatadumpStatus(true, data.datadumpCount);
-                    this.updateModifiedPlaceholders(data.modifiedPlaceholders || []);
-                    this.showStatus(data.message, 'success');
-                });
-            } else {
-                refreshBtn.textContent = originalText;
-                refreshBtn.disabled = false;
-                this.showStatus('Refresh failed: ' + (data.error || 'Unknown error'), 'error');
-            }
-        });
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => new WhatTheDuck());
+  // frontend/main.ts
+  document.addEventListener("DOMContentLoaded", () => {
+    whatTheDuck.init();
+  });
+})();
+//# sourceMappingURL=whattheduck.js.map

@@ -22,16 +22,16 @@
 
 .whattheduck-status-success {
     display: block;
-    background: rgba(40, 167, 69, 0.2);
-    color: #28a745;
-    border: 1px solid rgba(40, 167, 69, 0.3);
+    background: color-mix(in srgb, var(--green) 20%, transparent);
+    color: var(--green);
+    border: 1px solid color-mix(in srgb, var(--green) 35%, transparent);
 }
 
 .whattheduck-status-error {
     display: block;
-    background: rgba(220, 53, 69, 0.2);
-    color: #dc3545;
-    border: 1px solid rgba(220, 53, 69, 0.3);
+    background: color-mix(in srgb, var(--red) 20%, transparent);
+    color: var(--red);
+    border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
 }
 
 .whattheduck-datadump-info {
@@ -42,11 +42,11 @@
 }
 
 .whattheduck-datadump-active {
-    color: #28a745;
+    color: var(--green);
 }
 
 .whattheduck-datadump-inactive {
-    color: #6c757d;
+    color: var(--text-soft);
 }
 
 .whattheduck-datadump-actions {
@@ -55,7 +55,7 @@
     gap: 0.5rem;
     margin-top: 0.75rem;
     padding-top: 0.75rem;
-    border-top: 1px solid rgba(128, 128, 128, 0.2);
+    border-top: 1px solid var(--light-border);
 }
 
 .whattheduck-datadump-actions button:disabled {
@@ -65,8 +65,8 @@
 
 /* Modified placeholders warning report */
 .whattheduck-modified-report {
-    background: rgba(255, 193, 7, 0.15);
-    border: 1px solid rgba(255, 193, 7, 0.4);
+    background: color-mix(in srgb, var(--yellow) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--yellow) 40%, transparent);
     border-radius: 6px;
     padding: 0.75rem;
     margin-top: 0.75rem;
@@ -86,11 +86,14 @@
 
 .whattheduck-modified-title {
     font-weight: 600;
-    color: #d39e00;
+    /* The yellow box background + ⚠️ icon already signal the warning; use a
+       high-contrast text color so the title stays readable on every theme
+       (--yellow falls back to #ffff00, which is invisible on light themes). */
+    color: var(--text-strong);
 }
 
 .whattheduck-modified-description {
-    color: #856404;
+    color: var(--text);
     margin-bottom: 0.5rem;
     line-height: 1.4;
 }
@@ -104,30 +107,31 @@
 
 .whattheduck-modified-list li {
     margin: 0.25rem 0;
-    color: #856404;
+    color: var(--text);
 }
 
 .whattheduck-modified-list code {
-    background: rgba(0, 0, 0, 0.1);
+    background: var(--background-gray);
     padding: 0.1rem 0.3rem;
     border-radius: 3px;
     font-size: 0.8rem;
+    font-family: var(--font-monospace);
 }
 
 .whattheduck-modified-hint {
     font-size: 0.8rem;
-    color: #6c757d;
+    color: var(--text-soft);
     font-style: italic;
     margin-top: 0.5rem;
     padding-top: 0.5rem;
-    border-top: 1px solid rgba(255, 193, 7, 0.3);
+    border-top: 1px solid color-mix(in srgb, var(--yellow) 30%, transparent);
 }
 
 .image-block.wtd-compare-marked {
     position: relative;
-    outline: 3px dashed var(--star, #f0c000);
+    outline: 3px dashed var(--star);
     outline-offset: -3px;
-    box-shadow: 0 0 6px 2px rgba(240, 192, 0, 0.55);
+    box-shadow: 0 0 6px 2px color-mix(in srgb, var(--star) 55%, transparent);
 }
 
 .image-block.wtd-compare-marked::after {
@@ -140,7 +144,7 @@
     line-height: 1;
     padding: 0.1rem 0.25rem;
     border-radius: 4px;
-    color: #fff;
-    background: rgba(0, 0, 0, 0.6);
+    color: var(--white);
+    background: color-mix(in srgb, var(--black) 60%, transparent);
     pointer-events: none;
 }

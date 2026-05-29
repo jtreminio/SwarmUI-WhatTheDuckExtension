@@ -1,2 +1,24 @@
-__pycache__
+.claude
+AGENTS.dev.md
+
+# C# and related tools
+bin/
+obj/
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.pdb
+Properties/
+.dotnet/
+.aspnet/
+.local/
 **/Directory.Build.local.props
+
+# Node / TypeScript
+node_modules/
+coverage/
+*.js.map
+
+__pycache__/

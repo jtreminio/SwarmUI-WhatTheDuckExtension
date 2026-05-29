@@ -1,0 +1,163 @@
+/**
+ * Batch Compare Module
+ *
+ * Lets you compare media directly from the batch image container (#current_image_batch),
+ * mirroring SwarmUI's built-in History Browser "Compare" feature which is otherwise the
+ * only place comparison can be launched from.
+ *
+ * Usage:
+ * - Hover (or keyboard-navigate to) an image/video in the batch and press `C` to mark it.
+ * - Press `C` on a second item to open the comparison (uses SwarmUI's imageCompareHelper).
+ * - Press `C` on the already-marked item, or `Escape`, to clear the selection.
+ *
+ * This is gated behind the same "Keyboard Navigation" toggle as the other shortcuts, since
+ * it is itself a single-key shortcut.
+ */
+import { isEditableElement, suppressEvent } from "./dom";
+
+const MARKED_CLASS = "wtd-compare-marked";
+const BATCH_ID = "current_image_batch";
+
+let attached = false;
+let hovered: HTMLElement | null = null;
+let markedBlock: HTMLElement | null = null;
+
+/** A block is comparable if it is a real, finished image/video tile (not a placeholder/failed/empty tile). */
+export const isComparable = (block: HTMLElement | null): boolean => {
+    if (!block || !document.body.contains(block)) {
+        return false;
+    }
+    if (!block.dataset?.src) {
+        return false;
+    }
+    if (
+        block.classList.contains("image-block-placeholder") ||
+        block.classList.contains("image-block-failed")
+    ) {
+        return false;
+    }
+    const mediaType = getMediaType(block.dataset.src);
+    return mediaType === "image" || mediaType === "video";
+};
+
+/** The block to act on: the hovered batch tile if any, else the current-image tile in the batch. */
+const getTargetBlock = (): HTMLElement | null => {
+    if (isComparable(hovered)) {
+        return hovered;
+    }
+    const batch = document.getElementById(BATCH_ID);
+    if (batch) {
+        const current = batch.querySelector(
+            ".image-block.image-block-current",
+        ) as HTMLElement | null;
+        if (isComparable(current)) {
+            return current;
+        }
+    }
+    return null;
+};
+
+const blockToItem = (block: HTMLElement): CompareItem => ({
+    src: block.dataset.src,
+    mediaType: getMediaType(block.dataset.src),
+});
+
+const clearMark = (): void => {
+    if (markedBlock) {
+        markedBlock.classList.remove(MARKED_CLASS);
+    }
+    markedBlock = null;
+};
+
+const markBlock = (block: HTMLElement): void => {
+    clearMark();
+    markedBlock = block;
+    block.classList.add(MARKED_CLASS);
+};
+
+const launchCompare = (marked: HTMLElement, target: HTMLElement): void => {
+    const items = [blockToItem(marked), blockToItem(target)];
+    const valid = imageCompareHelper.evaluateSelection(items);
+    if (valid.state !== "ready") {
+        if (typeof showError === "function") {
+            showError(valid.reason || "Cannot compare current selection.");
+        }
+        clearMark();
+        return;
+    }
+    clearMark();
+    if (imageCompareHelper.isShowingPair(items[0], items[1])) {
+        return;
+    }
+    imageCompareHelper.reset();
+    imageCompareHelper.showComparison(items[0], items[1]);
+};
+
+const handleCompareKey = (): boolean => {
+    // The compare modal owns its own interactions while open; don't hijack C there.
+    if (
+        typeof imageCompareHelper === "undefined" ||
+        imageCompareHelper.isOpen()
+    ) {
+        return false;
+    }
+    const target = getTargetBlock();
+    if (!target) {
+        return false;
+    }
+    // Drop a stale mark (e.g. the marked tile was deleted) before deciding what to do.
+    if (markedBlock && !document.body.contains(markedBlock)) {
+        clearMark();
+    }
+    if (!markedBlock) {
+        markBlock(target);
+        return true;
+    }
+    if (markedBlock === target) {
+        clearMark();
+        return true;
+    }
+    launchCompare(markedBlock, target);
+    return true;
+};
+
+const handleKeydown = (event: KeyboardEvent): void => {
+    if (event.repeat) {
+        return;
+    }
+    if (event.ctrlKey || event.altKey || event.metaKey) {
+        return;
+    }
+    if (isEditableElement(event.target)) {
+        return;
+    }
+
+    const key = event.key;
+    if (key === "Escape") {
+        if (markedBlock) {
+            clearMark();
+        }
+        return;
+    }
+    if (key !== "c" && key !== "C") {
+        return;
+    }
+    if (handleCompareKey()) {
+        suppressEvent(event);
+    }
+};
+
+const handleMouseover = (event: MouseEvent): void => {
+    const target = event.target as Element | null;
+    const block = target?.closest?.(".image-block") as HTMLElement | null;
+    hovered = block?.closest(`#${BATCH_ID}`) ? block : null;
+};
+
+export const initBatchCompare = (): void => {
+    if (attached) {
+        return;
+    }
+    document.addEventListener("keydown", handleKeydown, true);
+    document.addEventListener("mouseover", handleMouseover, true);
+    attached = true;
+};

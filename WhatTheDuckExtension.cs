@@ -2,8 +2,6 @@ using SwarmUI.Core;
 using SwarmUI.Utils;
 using SwarmUI.WebAPI;
 using SwarmUI.Accounts;
-using Newtonsoft.Json.Linq;
-using System.IO;
 
 namespace WhatTheDuck;
 
@@ -16,9 +14,6 @@ public class WhatTheDuckExtension : Extension
     public override void OnPreInit()
     {
         ScriptFiles.Add("Assets/whattheduck.js");
-        ScriptFiles.Add("Assets/keyboard-navigation.js");
-        ScriptFiles.Add("Assets/batch-compare.js");
-        ScriptFiles.Add("Assets/compare-shortcuts.js");
         StyleSheetFiles.Add("Assets/whattheduck.css");
     }
 
@@ -107,7 +102,7 @@ public class WhatTheDuckExtension : Extension
 
     #region API Endpoints
 
-    public async Task<JObject> WhatTheDuckGetSettings(Session session)
+    public async Task<JObject> WhatTheDuckGetSettings(Session _)
     {
         return new JObject
         {
@@ -154,7 +149,7 @@ public class WhatTheDuckExtension : Extension
         }
     }
 
-    public async Task<JObject> WhatTheDuckRefreshDatadump(Session session)
+    public async Task<JObject> WhatTheDuckRefreshDatadump(Session _)
     {
         var (success, fileCount, message, error) = DatadumpManager.Refresh();
 

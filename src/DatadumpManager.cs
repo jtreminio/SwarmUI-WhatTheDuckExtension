@@ -1,7 +1,5 @@
-using FreneticUtilities.FreneticExtensions;
 using SwarmUI.Core;
 using SwarmUI.Utils;
-using System.IO;
 
 namespace WhatTheDuck;
 
@@ -179,9 +177,13 @@ public static class DatadumpManager
                 }
             }
 
-            if (created > 0 || DatadumpFiles.Count > 0)
+            if (created > 0)
             {
                 Logs.Info($"WhatTheDuck: Synced {DatadumpFiles.Count} datadump files ({created} placeholders created, {skipped} already existed)");
+            }
+            else
+            {
+                Logs.Debug($"WhatTheDuck: Synced {DatadumpFiles.Count} datadump files (no changes, {skipped} already existed)");
             }
         }
         catch (Exception ex)
