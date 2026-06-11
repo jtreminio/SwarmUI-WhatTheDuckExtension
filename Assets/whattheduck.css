@@ -148,3 +148,32 @@
     background: color-mix(in srgb, var(--black) 60%, transparent);
     pointer-events: none;
 }
+
+/* Edit Prompt feature */
+.wtd-prompt-edit-button {
+    /* The copy button is float:right; floating this right too (while staying after
+       it in DOM order) makes it land immediately to the left of the copy button. */
+    float: right;
+    margin-right: 0.25rem;
+}
+
+.wtd-prompt-edit-textarea {
+    width: 100%;
+    min-height: 8rem;
+    box-sizing: border-box;
+    resize: vertical;
+    font-family: var(--font-monospace);
+    font-size: 0.9rem;
+}
+
+/* The global rule sizes .modal-dialog/.modal-content to fit-content, which collapses
+   when the only body content is a width:100% textarea. Pin a definite width (reusing
+   SwarmUI's standard modal-width formula) so the content fills it, matching the
+   #input_image_browser_modal pattern of overriding both dialog and content. */
+#wtd_prompt_edit_modal .modal-dialog {
+    width: calc(max(500px, 50vw));
+    max-width: 90vw;
+}
+#wtd_prompt_edit_modal .modal-content {
+    width: 100%;
+}

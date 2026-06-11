@@ -1,5 +1,171 @@
 "use strict";
 (() => {
+  // frontend/promptEdit.ts
+  var MODAL_ID = "wtd_prompt_edit_modal";
+  var TEXTAREA_ID = "wtd_prompt_edit_textarea";
+  var SAVE_ID = "wtd_prompt_edit_save";
+  var EDIT_BTN_CLASS = "wtd-prompt-edit-button";
+  var EDIT_BTN_MARK = "data-wtd-edit-button";
+  var started = false;
+  var getTextarea = () => document.getElementById(TEXTAREA_ID);
+  var showModal = () => {
+    if (typeof $ === "function") {
+      $(`#${MODAL_ID}`).modal("show");
+    }
+    getTextarea()?.focus();
+  };
+  var hideModal = () => {
+    if (typeof $ === "function") {
+      $(`#${MODAL_ID}`).modal("hide");
+    }
+  };
+  var setTextarea = (value) => {
+    const textarea = getTextarea();
+    if (textarea) {
+      textarea.value = value;
+    }
+  };
+  var getTextareaValue = () => getTextarea()?.value ?? "";
+  function readPositivePrompt(raw) {
+    if (!raw) {
+      return "";
+    }
+    let jsonStr = null;
+    try {
+      jsonStr = interpretMetadata(raw);
+    } catch {
+      jsonStr = null;
+    }
+    if (!jsonStr) {
+      jsonStr = raw;
+    }
+    try {
+      const obj = JSON.parse(jsonStr);
+      const p = obj?.sui_image_params ? obj.sui_image_params.prompt : "";
+      if (typeof p === "string") {
+        return p;
+      }
+      return p == null ? "" : String(p);
+    } catch {
+      return "";
+    }
+  }
+  function injectEditButtons(rootDoc) {
+    const containers = rootDoc.querySelectorAll(".current-image-data");
+    for (const container of Array.from(containers)) {
+      const copyButtons = container.querySelectorAll(".prompt-copy-button");
+      for (const copyBtn of Array.from(copyButtons)) {
+        const block = copyBtn.closest(".param_view_block");
+        if (!block) {
+          continue;
+        }
+        const nameEl = block.querySelector(".param_view_name");
+        if (nameEl?.textContent?.trim() !== "Prompt") {
+          continue;
+        }
+        const next = copyBtn.nextElementSibling;
+        if (next?.hasAttribute(EDIT_BTN_MARK)) {
+          continue;
+        }
+        if (block.querySelector(`[${EDIT_BTN_MARK}]`)) {
+          continue;
+        }
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `basic-button ${EDIT_BTN_CLASS}`;
+        btn.title = "Edit prompt";
+        btn.setAttribute(EDIT_BTN_MARK, "true");
+        btn.innerHTML = "&#x270E;";
+        btn.addEventListener("click", onEditClick);
+        copyBtn.insertAdjacentElement("afterend", btn);
+      }
+    }
+  }
+  function onEditClick() {
+    const el = currentImageHelper.getCurrentImage();
+    const raw = el?.dataset?.metadata || currentMetadataVal;
+    setTextarea(readPositivePrompt(raw));
+    showModal();
+  }
+  function onSave() {
+    const el = currentImageHelper.getCurrentImage();
+    const path = el?.dataset ? getImageFullSrc(el.dataset.src) : null;
+    const newVal = getTextareaValue();
+    if (!path) {
+      showError("No current image to save to.");
+      hideModal();
+      return;
+    }
+    genericRequest(
+      "WhatTheDuckEditPrompt",
+      { path, prompt: newVal },
+      (data) => {
+        if (!data?.success) {
+          showError(data?.error || "Failed to save prompt.");
+          return;
+        }
+        const newMetadata = data.metadata ?? "";
+        const cur = currentImageHelper.getCurrentImage();
+        const curSrc = cur?.dataset.src;
+        if (cur && curSrc != null && getImageFullSrc(curSrc) === path) {
+          cur.dataset.metadata = newMetadata;
+          globalThis.currentMetadataVal = newMetadata;
+          if (typeof setCurrentImage === "function") {
+            setCurrentImage(
+              curSrc,
+              newMetadata,
+              "",
+              false,
+              false,
+              false
+            );
+          }
+        }
+        doNoticePopover("Prompt updated", "notice-pop-green");
+        hideModal();
+      }
+    );
+  }
+  function buildModal() {
+    if (document.getElementById(MODAL_ID)) {
+      return;
+    }
+    const modal = document.createElement("div");
+    modal.className = "modal";
+    modal.id = MODAL_ID;
+    modal.tabIndex = -1;
+    modal.setAttribute("role", "dialog");
+    modal.innerHTML = `
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Edit Prompt</h5></div>
+                <div class="modal-body">
+                    <textarea id="${TEXTAREA_ID}" class="wtd-prompt-edit-textarea auto-text-block" rows="8"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="${SAVE_ID}" class="btn btn-primary basic-button">Save</button>
+                    <button type="button" class="btn btn-secondary basic-button" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    document.getElementById(SAVE_ID)?.addEventListener("click", onSave);
+    modal.querySelector('[data-bs-dismiss="modal"]')?.addEventListener("click", () => hideModal());
+  }
+  var init = () => {
+    if (started) {
+      return;
+    }
+    started = true;
+    buildModal();
+    const observer = new MutationObserver(() => injectEditButtons(document));
+    observer.observe(document.body, { childList: true, subtree: true });
+    injectEditButtons(document);
+  };
+  var promptEdit = {
+    init
+  };
+
   // frontend/dom.ts
   var isEditableElement = (target) => {
     const element = target;
@@ -144,7 +310,7 @@
   };
 
   // frontend/compareShortcuts.ts
-  var MODAL_ID = "image_compare_modal";
+  var MODAL_ID2 = "image_compare_modal";
   var KEY_TO_SELECTOR = {
     "1": '[data-compare-mode="side"]',
     "!": '[data-compare-mode="side"]',
@@ -180,7 +346,7 @@
     if (!selector) {
       return;
     }
-    const modal = document.getElementById(MODAL_ID);
+    const modal = document.getElementById(MODAL_ID2);
     const button = modal?.querySelector(selector);
     if (!button) {
       return;
@@ -644,7 +810,7 @@
       }
     );
   };
-  var init = () => {
+  var init2 = () => {
     const toolDiv = registerNewTool("whattheduck", "WhatTheDuck Settings");
     toolDiv.innerHTML = renderSettingsForm({
       keyboardNavigationEnabled,
@@ -662,12 +828,13 @@
     document.getElementById("whattheduck-refresh-datadump")?.addEventListener("click", refreshDatadump);
   };
   var whatTheDuck = {
-    init
+    init: init2
   };
 
   // frontend/main.ts
   document.addEventListener("DOMContentLoaded", () => {
     whatTheDuck.init();
+    promptEdit.init();
   });
 })();
 //# sourceMappingURL=whattheduck.js.map
