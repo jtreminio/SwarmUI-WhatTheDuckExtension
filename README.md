@@ -1,3 +1,7 @@
+🚨  Heads' up: WhatTheDuck will soon lose support for the massive wildcard files.
+
+Instead, you'll want to [Quarry](https://discord.com/channels/1243166023859961988/1515427964748173603).
+
 # WhatTheDuck Extension
 
 A SwarmUI extension for performance optimizations and enhancements that are not good enough for the base project.

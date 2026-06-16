@@ -2,12 +2,15 @@
  * Batch Compare Module
  *
  * Lets you compare media directly from the batch image container (#current_image_batch),
- * mirroring SwarmUI's built-in History Browser "Compare" feature which is otherwise the
- * only place comparison can be launched from.
+ * the History tab (#imagehistorybrowser-content), or the Image Search tab
+ * (#quarryimagesearch-content), mirroring SwarmUI's built-in History Browser "Compare"
+ * feature which is otherwise the only place comparison can be launched from.
  *
  * Usage:
- * - Hover (or keyboard-navigate to) an image/video in the batch and press `C` to mark it.
+ * - Hover (or keyboard-navigate to) an image/video in any of those containers and press
+ *   `C` to mark it.
  * - Press `C` on a second item to open the comparison (uses SwarmUI's imageCompareHelper).
+ *   The two items may live in different containers (e.g. a batch tile vs a history tile).
  * - Press `C` on the already-marked item, or `Escape`, to clear the selection.
  *
  * This is gated behind the same "Keyboard Navigation" toggle as the other shortcuts, since
@@ -17,6 +20,20 @@ import { isEditableElement, suppressEvent } from "./dom";
 
 const MARKED_CLASS = "wtd-compare-marked";
 const BATCH_ID = "current_image_batch";
+const HISTORY_ID = "imagehistorybrowser-content";
+const SEARCH_ID = "quarryimagesearch-content";
+const CONTAINER_IDS = [BATCH_ID, HISTORY_ID, SEARCH_ID];
+
+/** The compare-source container (batch or history) an `.image-block` lives in, if any. */
+const closestContainer = (block: HTMLElement | null): HTMLElement | null => {
+    for (const id of CONTAINER_IDS) {
+        const container = block?.closest(`#${id}`) as HTMLElement | null;
+        if (container) {
+            return container;
+        }
+    }
+    return null;
+};
 
 let attached = false;
 let hovered: HTMLElement | null = null;
@@ -40,14 +57,14 @@ export const isComparable = (block: HTMLElement | null): boolean => {
     return mediaType === "image" || mediaType === "video";
 };
 
-/** The block to act on: the hovered batch tile if any, else the current-image tile in the batch. */
+/** The block to act on: the hovered batch/history tile if any, else a current-image tile. */
 const getTargetBlock = (): HTMLElement | null => {
     if (isComparable(hovered)) {
         return hovered;
     }
-    const batch = document.getElementById(BATCH_ID);
-    if (batch) {
-        const current = batch.querySelector(
+    for (const id of CONTAINER_IDS) {
+        const container = document.getElementById(id);
+        const current = container?.querySelector(
             ".image-block.image-block-current",
         ) as HTMLElement | null;
         if (isComparable(current)) {
@@ -150,7 +167,7 @@ const handleKeydown = (event: KeyboardEvent): void => {
 const handleMouseover = (event: MouseEvent): void => {
     const target = event.target as Element | null;
     const block = target?.closest?.(".image-block") as HTMLElement | null;
-    hovered = block?.closest(`#${BATCH_ID}`) ? block : null;
+    hovered = closestContainer(block) ? block : null;
 };
 
 export const initBatchCompare = (): void => {

@@ -186,6 +186,18 @@
   // frontend/batchCompare.ts
   var MARKED_CLASS = "wtd-compare-marked";
   var BATCH_ID = "current_image_batch";
+  var HISTORY_ID = "imagehistorybrowser-content";
+  var SEARCH_ID = "quarryimagesearch-content";
+  var CONTAINER_IDS = [BATCH_ID, HISTORY_ID, SEARCH_ID];
+  var closestContainer = (block) => {
+    for (const id of CONTAINER_IDS) {
+      const container = block?.closest(`#${id}`);
+      if (container) {
+        return container;
+      }
+    }
+    return null;
+  };
   var attached = false;
   var hovered = null;
   var markedBlock = null;
@@ -206,9 +218,9 @@
     if (isComparable(hovered)) {
       return hovered;
     }
-    const batch = document.getElementById(BATCH_ID);
-    if (batch) {
-      const current = batch.querySelector(
+    for (const id of CONTAINER_IDS) {
+      const container = document.getElementById(id);
+      const current = container?.querySelector(
         ".image-block.image-block-current"
       );
       if (isComparable(current)) {
@@ -298,7 +310,7 @@
   var handleMouseover = (event) => {
     const target = event.target;
     const block = target?.closest?.(".image-block");
-    hovered = block?.closest(`#${BATCH_ID}`) ? block : null;
+    hovered = closestContainer(block) ? block : null;
   };
   var initBatchCompare = () => {
     if (attached) {
