@@ -32,6 +32,16 @@ In the comparison modal, number keys (or their Shift symbols) switch the view:
 
 Can be enabled/disabled in the settings panel.
 
+### Redo
+
+Adds a **Redo** entry to the current image's action menu (the "More" dropdown alongside "Upscale 2x", "Refine Image", and "View In History").
+
+Redo regenerates the selected image with a brand-new random seed while keeping every other setting identical to that image — model, CFG, steps, LoRAs, refiner, dimensions, sampler, and the **finalized prompt**.
+
+The key difference from "Reuse Parameters": that button loads the *original* prompt back into the prompt box (so wildcards, MagicPrompt LLM expansion, and macros re-roll on the next generation). Redo instead reuses the *already-finalized* prompt verbatim, so those prompt-time randomizers are **not** re-evaluated — you get the exact same prompt that produced the source image, just a different seed.
+
+The original prompt is still preserved: it is recorded as `original_prompt` in the new image's metadata, exactly as the source image had it.
+
 ### Datadump - Large Wildcard File Support
 
 Handles very large wildcard files (gigabytes in size) without impacting SwarmUI's performance. When you click "Refresh Wildcards" in SwarmUI, it normally loads all wildcard files into memory - this can cause issues with extremely large files.

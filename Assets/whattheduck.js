@@ -166,6 +166,100 @@
     init
   };
 
+  // frontend/redo.ts
+  var BUTTON_NAME = "Redo";
+  var BUTTON_TITLE = "Generate a new image with a fresh random seed, reusing every other setting from this image (including the already-finalized prompt — wildcards and MagicPrompt are not re-rolled).";
+  var registered = false;
+  var NON_PARAM_KEYS = /* @__PURE__ */ new Set(["swarm_version"]);
+  var parseSwarmMetadata = (raw) => {
+    if (!raw) {
+      return null;
+    }
+    let jsonStr = null;
+    try {
+      jsonStr = interpretMetadata(raw);
+    } catch {
+      jsonStr = null;
+    }
+    if (!jsonStr) {
+      jsonStr = raw;
+    }
+    try {
+      const obj = JSON.parse(jsonStr);
+      if (obj && typeof obj === "object" && obj.sui_image_params) {
+        return obj;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+  var buildRedoInput = (meta) => {
+    const params = meta.sui_image_params ?? {};
+    const input = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (NON_PARAM_KEYS.has(key)) {
+        continue;
+      }
+      input[key] = value;
+    }
+    input.seed = -1;
+    input.images = 1;
+    input.batchsize = 1;
+    const extra = meta.sui_extra_data ?? {};
+    const extraMetadata = {};
+    if (typeof extra.original_prompt === "string") {
+      extraMetadata.original_prompt = extra.original_prompt;
+    }
+    if (typeof extra.original_negativeprompt === "string") {
+      extraMetadata.original_negativeprompt = extra.original_negativeprompt;
+    }
+    if (Object.keys(extraMetadata).length > 0) {
+      input.extra_metadata = extraMetadata;
+    }
+    return input;
+  };
+  var onRedoClick = () => {
+    const el = currentImageHelper.getCurrentImage();
+    const raw = el?.dataset?.metadata || currentMetadataVal;
+    const meta = parseSwarmMetadata(raw);
+    if (!meta) {
+      showError("No image parameters available to redo.");
+      return;
+    }
+    const redoInput = buildRedoInput(meta);
+    mainGenHandler.doGenerate(
+      {},
+      {},
+      (actualInput) => {
+        for (const key of Object.keys(actualInput)) {
+          delete actualInput[key];
+        }
+        Object.assign(actualInput, redoInput);
+      }
+    );
+  };
+  var init2 = () => {
+    if (registered) {
+      return;
+    }
+    if (typeof registerMediaButton !== "function") {
+      return;
+    }
+    registered = true;
+    registerMediaButton(
+      BUTTON_NAME,
+      onRedoClick,
+      BUTTON_TITLE,
+      ["image", "video"],
+      false,
+      true
+    );
+  };
+  var redo = {
+    init: init2
+  };
+
   // frontend/dom.ts
   var isEditableElement = (target) => {
     const element = target;
@@ -822,7 +916,7 @@
       }
     );
   };
-  var init2 = () => {
+  var init3 = () => {
     const toolDiv = registerNewTool("whattheduck", "WhatTheDuck Settings");
     toolDiv.innerHTML = renderSettingsForm({
       keyboardNavigationEnabled,
@@ -840,10 +934,11 @@
     document.getElementById("whattheduck-refresh-datadump")?.addEventListener("click", refreshDatadump);
   };
   var whatTheDuck = {
-    init: init2
+    init: init3
   };
 
   // frontend/main.ts
+  redo.init();
   document.addEventListener("DOMContentLoaded", () => {
     whatTheDuck.init();
     promptEdit.init();

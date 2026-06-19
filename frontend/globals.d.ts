@@ -30,17 +30,25 @@ declare const imageCompareHelper: {
 
 declare const mainGenHandler: {
     doInterrupt(): void;
+    doGenerate(
+        inputOverrides?: Record<string, unknown>,
+        inputPreOverrides?: Record<string, unknown>,
+        postCollectRun?: (actualInput: Record<string, unknown>) => void,
+    ): void;
 };
 
-// `var` (not `let`) so these are members of the `globalThis` type and can be
-// assigned via `globalThis.currentMetadataVal = ...` (a bare assignment to an
-// undeclared binding throws under ES-module strict mode, e.g. in ts-jest).
+declare function registerMediaButton(
+    name: string,
+    action: (src: string) => void,
+    title?: string,
+    mediaTypes?: string[] | null,
+    isDefault?: boolean,
+    showInHistory?: boolean,
+): void;
+
 declare var currentMetadataVal: string | null;
 declare var currentImgSrc: string | null;
 
-// Normalizes a display image src to the relative path the backend expects:
-// strips the protocol+host, a leading slash, and the "Output/" or
-// "View/<user>/" prefix. Returns null for null/undefined input.
 declare function getImageFullSrc(src: string | null | undefined): string | null;
 
 declare const currentImageHelper: {
@@ -65,7 +73,6 @@ declare function doNoticePopover(message: string, className: string): void;
 
 declare function copyText(text: string): void;
 
-// jQuery (bootstrap modal). Minimal pragmatic typing.
 declare function $(selector: string): {
     modal(action: "show" | "hide" | "toggle"): unknown;
 };
