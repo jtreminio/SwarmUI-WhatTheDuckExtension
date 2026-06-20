@@ -19,6 +19,8 @@ Adds keyboard shortcuts for image navigation and actions:
 - **S** - Toggle star/favorite on current image
 - **X** - Delete current image (double-tap required within 500ms)
 - **Q** - Delete current image (SINGLE-tap)
+- **E** - End / interrupt current generation(s)
+- **R** - Redo current image with a fresh seed (same as the Redo button)
 
 In the comparison modal, number keys (or their Shift symbols) switch the view:
 

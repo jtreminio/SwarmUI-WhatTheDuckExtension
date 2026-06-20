@@ -8,8 +8,10 @@
  * - X: Delete current image (double-tap required within 500ms)
  * - Q: Delete current image (single press)
  * - E: End / interrupt current generation(s) (same as the interrupt button)
+ * - R: Redo current image with a fresh seed (same as the Redo button)
  */
 import { isEditableElement, suppressEvent } from "./dom";
+import { redo } from "./redo";
 
 const DELETE_DOUBLE_TAP_TIMEOUT = 500;
 
@@ -193,7 +195,9 @@ const handleKeydown = (event: KeyboardEvent): void => {
         key !== "q" &&
         key !== "Q" &&
         key !== "e" &&
-        key !== "E"
+        key !== "E" &&
+        key !== "r" &&
+        key !== "R"
     ) {
         return;
     }
@@ -210,6 +214,10 @@ const handleKeydown = (event: KeyboardEvent): void => {
     }
     if (key === "e" || key === "E") {
         triggerInterrupt();
+        return;
+    }
+    if (key === "r" || key === "R") {
+        redo.run();
         return;
     }
 

@@ -7,6 +7,11 @@ import {
     jest,
 } from "@jest/globals";
 import { initKeyboardNavigation } from "./keyboardNavigation";
+import { redo } from "./redo";
+
+jest.mock("./redo", () => ({
+    redo: { init: jest.fn(), run: jest.fn() },
+}));
 
 /**
  * Exercises the X double-tap-delete state machine through the public API: we
@@ -95,5 +100,45 @@ describe("keyboardNavigation double-tap delete", () => {
         pressX();
         jest.advanceTimersByTime(100);
         expect(clicks).toHaveLength(1);
+    });
+});
+
+describe("keyboardNavigation redo shortcut", () => {
+    const pressR = (key = "r"): void => {
+        document.dispatchEvent(
+            new KeyboardEvent("keydown", {
+                key,
+                bubbles: true,
+                cancelable: true,
+            }),
+        );
+    };
+
+    beforeEach(() => {
+        (redo.run as jest.Mock).mockClear();
+        initKeyboardNavigation();
+    });
+
+    it("runs redo on R", () => {
+        pressR("r");
+        expect(redo.run).toHaveBeenCalledTimes(1);
+    });
+
+    it("runs redo on Shift+R (uppercase)", () => {
+        pressR("R");
+        expect(redo.run).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores R typed in an editable element", () => {
+        const input = document.createElement("input");
+        document.body.appendChild(input);
+        input.dispatchEvent(
+            new KeyboardEvent("keydown", {
+                key: "r",
+                bubbles: true,
+                cancelable: true,
+            }),
+        );
+        expect(redo.run).not.toHaveBeenCalled();
     });
 });

@@ -257,7 +257,8 @@
     );
   };
   var redo = {
-    init: init2
+    init: init2,
+    run: onRedoClick
   };
 
   // frontend/dom.ts
@@ -595,7 +596,7 @@
       return;
     }
     const key = event.key;
-    if (key !== "a" && key !== "A" && key !== "d" && key !== "D" && key !== "s" && key !== "S" && key !== "x" && key !== "X" && key !== "q" && key !== "Q" && key !== "e" && key !== "E") {
+    if (key !== "a" && key !== "A" && key !== "d" && key !== "D" && key !== "s" && key !== "S" && key !== "x" && key !== "X" && key !== "q" && key !== "Q" && key !== "e" && key !== "E" && key !== "r" && key !== "R") {
       return;
     }
     suppressEvent(event);
@@ -609,6 +610,10 @@
     }
     if (key === "e" || key === "E") {
       triggerInterrupt();
+      return;
+    }
+    if (key === "r" || key === "R") {
+      redo.run();
       return;
     }
     const context = getUIContext();

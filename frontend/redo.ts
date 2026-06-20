@@ -68,7 +68,7 @@ export const buildRedoInput = (
     return input;
 };
 
-const onRedoClick = (): void => {
+export const onRedoClick = (): void => {
     const el = currentImageHelper.getCurrentImage();
     const raw = el?.dataset?.metadata || currentMetadataVal;
     const meta = parseSwarmMetadata(raw);
@@ -109,4 +109,5 @@ const init = (): void => {
 
 export const redo = {
     init,
+    run: onRedoClick,
 };
