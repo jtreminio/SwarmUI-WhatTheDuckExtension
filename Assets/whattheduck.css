@@ -178,8 +178,8 @@
     width: 100%;
 }
 
-/* Civitai Auto-Folders feature */
-.whattheduck-civitai-row {
+/* Model Auto-Folders feature */
+.whattheduck-arch-row {
     display: flex;
     gap: 0.4rem;
     /* The architecture multi-select is taller than the folder dropdowns; top
@@ -188,7 +188,7 @@
     margin-bottom: 0.35rem;
 }
 
-.whattheduck-civitai-row .wtd-arch-picker {
+.whattheduck-arch-row .wtd-arch-picker {
     position: relative;
     flex: 1.4 1 0;
     min-width: 0;
@@ -295,6 +295,9 @@
 .wtd-arch-option:hover {
     background-color: var(--background-soft);
 }
+.wtd-arch-option.wtd-arch-option-taken {
+    display: none;
+}
 .wtd-arch-actions {
     display: flex;
     justify-content: space-between;
@@ -305,15 +308,15 @@
     font-size: 0.85em;
 }
 
-.whattheduck-civitai-row select {
+.whattheduck-arch-row select {
     flex: 1 1 0;
     min-width: 0;
 }
 
-.whattheduck-civitai-row .wtd-civitai-remove {
+.whattheduck-arch-row .wtd-arch-remove {
     flex: 0 0 auto;
 }
 
-.whattheduck-civitai-actions {
+.whattheduck-arch-actions {
     margin-top: 0.5rem;
 }

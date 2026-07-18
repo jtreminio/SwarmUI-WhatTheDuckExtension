@@ -1,16 +1,16 @@
 import { describe, expect, it } from "@jest/globals";
 import { escapeAttr, escapeHtml } from "./escape";
 import {
-    type CivitaiRowOptions,
-    readCivitaiMappings,
-    renderCivitaiMappingRows,
-    renderCivitaiSelect,
+    type ArchRowOptions,
+    readArchMappings,
+    renderArchMappingRows,
     renderDatadumpStatus,
+    renderMappingSelect,
     renderModifiedPlaceholders,
     renderSettingsForm,
 } from "./settings";
 
-const ROW_OPTIONS: CivitaiRowOptions = {
+const ROW_OPTIONS: ArchRowOptions = {
     architectures: ["Anima", "Pony", "SDXL 1.0"],
     checkpointFolders: ["anima", "pony"],
     loraFolders: ["anima", "anima/loras", "pony"],
@@ -85,7 +85,7 @@ describe("settings pure renderers", () => {
                 keyboardNavigationEnabled: true,
                 datadumpEnabled: false,
                 datadumpFolder: "/data/wildcards",
-                civitaiFolderMappings: [],
+                archFolderMappings: [],
             });
 
             const wrapper = document.createElement("div");
@@ -112,7 +112,7 @@ describe("settings pure renderers", () => {
                 keyboardNavigationEnabled: false,
                 datadumpEnabled: true,
                 datadumpFolder: "",
-                civitaiFolderMappings: [],
+                archFolderMappings: [],
             });
 
             const keyboardNav = wrapper.querySelector<HTMLInputElement>(
@@ -136,7 +136,7 @@ describe("settings pure renderers", () => {
                 keyboardNavigationEnabled: false,
                 datadumpEnabled: false,
                 datadumpFolder: "",
-                civitaiFolderMappings: [],
+                archFolderMappings: [],
             });
 
             expect(wrapper.querySelector("#whattheduck-form")).not.toBeNull();
@@ -150,20 +150,20 @@ describe("settings pure renderers", () => {
                 wrapper.querySelector("#whattheduck-refresh-datadump"),
             ).not.toBeNull();
             expect(
-                wrapper.querySelector("#whattheduck-civitai-mappings"),
+                wrapper.querySelector("#whattheduck-arch-mappings"),
             ).not.toBeNull();
             expect(
-                wrapper.querySelector("#whattheduck-civitai-add"),
+                wrapper.querySelector("#whattheduck-arch-add"),
             ).not.toBeNull();
         });
 
-        it("seeds the civitai mapping rows from state", () => {
+        it("seeds the mapping rows from state", () => {
             const wrapper = document.createElement("div");
             wrapper.innerHTML = renderSettingsForm({
                 keyboardNavigationEnabled: false,
                 datadumpEnabled: false,
                 datadumpFolder: "",
-                civitaiFolderMappings: [
+                archFolderMappings: [
                     {
                         architectures: ["Anima", "Pony"],
                         checkpointFolder: "anima",
@@ -172,10 +172,10 @@ describe("settings pure renderers", () => {
                 ],
             });
 
-            const row = wrapper.querySelector("[data-wtd-civitai-row]");
+            const row = wrapper.querySelector("[data-wtd-arch-row]");
             expect(row).not.toBeNull();
             const archSelect =
-                row?.querySelector<HTMLSelectElement>(".wtd-civitai-arch");
+                row?.querySelector<HTMLSelectElement>(".wtd-arch-select");
             expect(
                 Array.from(archSelect?.selectedOptions ?? []).map(
                     (o) => o.value,
@@ -184,12 +184,11 @@ describe("settings pure renderers", () => {
             // Folder values not present in the (empty in jsdom) coreModelMap
             // folder lists are injected as options so they still round-trip.
             expect(
-                row?.querySelector<HTMLSelectElement>(".wtd-civitai-checkpoint")
+                row?.querySelector<HTMLSelectElement>(".wtd-arch-checkpoint")
                     ?.value,
             ).toBe("anima");
             expect(
-                row?.querySelector<HTMLSelectElement>(".wtd-civitai-lora")
-                    ?.value,
+                row?.querySelector<HTMLSelectElement>(".wtd-arch-lora")?.value,
             ).toBe("anima/loras");
         });
     });
@@ -200,18 +199,18 @@ describe("settings pure renderers", () => {
         });
     });
 
-    describe("renderCivitaiSelect", () => {
+    describe("renderMappingSelect", () => {
         it("renders a SwarmUI-styled dropdown with a placeholder and selects the value", () => {
             const wrapper = document.createElement("div");
-            wrapper.innerHTML = renderCivitaiSelect(
-                "wtd-civitai-checkpoint",
+            wrapper.innerHTML = renderMappingSelect(
+                "wtd-arch-checkpoint",
                 "(No checkpoint folder)",
                 ["anima", "pony"],
                 "pony",
             );
             const select = wrapper.querySelector<HTMLSelectElement>("select");
             expect(select?.classList.contains("auto-dropdown")).toBe(true);
-            expect(select?.classList.contains("wtd-civitai-checkpoint")).toBe(
+            expect(select?.classList.contains("wtd-arch-checkpoint")).toBe(
                 true,
             );
             expect(select?.value).toBe("pony");
@@ -224,8 +223,8 @@ describe("settings pure renderers", () => {
 
         it("defaults to the empty placeholder when no value is set", () => {
             const wrapper = document.createElement("div");
-            wrapper.innerHTML = renderCivitaiSelect(
-                "wtd-civitai-lora",
+            wrapper.innerHTML = renderMappingSelect(
+                "wtd-arch-lora",
                 "(No LoRA folder)",
                 ["anima"],
                 "",
@@ -237,8 +236,8 @@ describe("settings pure renderers", () => {
 
         it("injects an unknown value as an extra option so it round-trips", () => {
             const wrapper = document.createElement("div");
-            wrapper.innerHTML = renderCivitaiSelect(
-                "wtd-civitai-checkpoint",
+            wrapper.innerHTML = renderMappingSelect(
+                "wtd-arch-checkpoint",
                 "(No checkpoint folder)",
                 ["anima"],
                 "brand/new-folder",
@@ -249,8 +248,8 @@ describe("settings pure renderers", () => {
         });
 
         it("escapes values to prevent markup injection", () => {
-            const html = renderCivitaiSelect(
-                "wtd-civitai-checkpoint",
+            const html = renderMappingSelect(
+                "wtd-arch-checkpoint",
                 "(No checkpoint folder)",
                 [],
                 '"><script>alert(1)</script>',
@@ -260,10 +259,10 @@ describe("settings pure renderers", () => {
         });
     });
 
-    describe("civitai mapping rows", () => {
-        it("round-trips rows through the DOM via readCivitaiMappings", () => {
+    describe("arch mapping rows", () => {
+        it("round-trips rows through the DOM via readArchMappings", () => {
             const wrapper = document.createElement("div");
-            wrapper.innerHTML = renderCivitaiMappingRows(
+            wrapper.innerHTML = renderArchMappingRows(
                 [
                     {
                         architectures: ["Anima", "SDXL 1.0"],
@@ -279,7 +278,7 @@ describe("settings pure renderers", () => {
                 ROW_OPTIONS,
             );
 
-            expect(readCivitaiMappings(wrapper)).toEqual([
+            expect(readArchMappings(wrapper)).toEqual([
                 {
                     architectures: ["Anima", "SDXL 1.0"],
                     checkpointFolder: "anima",
@@ -295,7 +294,7 @@ describe("settings pure renderers", () => {
 
         it("drops incomplete rows when reading back", () => {
             const wrapper = document.createElement("div");
-            wrapper.innerHTML = renderCivitaiMappingRows(
+            wrapper.innerHTML = renderArchMappingRows(
                 [
                     {
                         architectures: [],
@@ -316,7 +315,7 @@ describe("settings pure renderers", () => {
                 ROW_OPTIONS,
             );
 
-            expect(readCivitaiMappings(wrapper)).toEqual([
+            expect(readArchMappings(wrapper)).toEqual([
                 {
                     architectures: ["Pony"],
                     checkpointFolder: "pony",

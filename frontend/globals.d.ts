@@ -22,7 +22,9 @@ type CivitaiDelayedCallback = (img: string | null, imgs: string[]) => void;
 declare var modelDownloader:
     | {
           url: HTMLInputElement;
+          type: HTMLSelectElement;
           folders: HTMLSelectElement;
+          urlInput(): void;
           getCivitaiMetadata(
               id: string | null,
               versId: string | null,

@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it } from "@jest/globals";
 import {
-    initCivitaiArchPickers,
+    initArchPickers,
+    renderArchPicker,
     renderArchPills,
-    renderCivitaiArchPicker,
     shouldOpenUpward,
     syncPicker,
-} from "./civitaiArchPicker";
+} from "./archPicker";
 
 const OPTIONS = ["Anima", "Flux.2 Klein 4B", "Flux.2 Klein 9B", "Pony"];
 
 const mount = (selected: string[]): HTMLElement => {
-    document.body.innerHTML = renderCivitaiArchPicker(selected, OPTIONS);
-    initCivitaiArchPickers(document);
+    document.body.innerHTML = renderArchPicker(selected, OPTIONS);
+    initArchPickers(document);
     return document.querySelector("[data-wtd-arch-picker]") as HTMLElement;
 };
 
@@ -22,7 +22,7 @@ const trigger = (picker: Element): HTMLElement =>
     picker.querySelector("[data-wtd-arch-trigger]") as HTMLElement;
 
 const hiddenSelect = (picker: Element): HTMLSelectElement =>
-    picker.querySelector("select.wtd-civitai-arch") as HTMLSelectElement;
+    picker.querySelector("select.wtd-arch-select") as HTMLSelectElement;
 
 const checkbox = (picker: Element, value: string): HTMLInputElement =>
     Array.from(
@@ -62,7 +62,7 @@ describe("renderArchPills", () => {
     });
 });
 
-describe("renderCivitaiArchPicker", () => {
+describe("renderArchPicker", () => {
     it("mirrors the selection into a hidden native select for the save path", () => {
         const picker = mount(["Anima", "Pony"]);
         const select = hiddenSelect(picker);
@@ -178,6 +178,72 @@ describe("picker interaction", () => {
         expect(picker.querySelector("[data-wtd-arch-count]")?.textContent).toBe(
             "1 selected",
         );
+    });
+});
+
+describe("cross-picker exclusivity", () => {
+    const mountTwo = (a: string[], b: string[]): [HTMLElement, HTMLElement] => {
+        document.body.innerHTML =
+            renderArchPicker(a, OPTIONS) + renderArchPicker(b, OPTIONS);
+        initArchPickers(document);
+        const pickers = document.querySelectorAll("[data-wtd-arch-picker]");
+        return [pickers[0] as HTMLElement, pickers[1] as HTMLElement];
+    };
+
+    const optionLabel = (picker: Element, value: string): HTMLElement =>
+        checkbox(picker, value).closest(".wtd-arch-option") as HTMLElement;
+
+    const isTaken = (picker: Element, value: string): boolean =>
+        optionLabel(picker, value).classList.contains("wtd-arch-option-taken");
+
+    it("hides options selected in another picker when the panel opens", () => {
+        const [, second] = mountTwo(["Anima"], []);
+        click(trigger(second));
+        expect(isTaken(second, "Anima")).toBe(true);
+        expect(isTaken(second, "Pony")).toBe(false);
+    });
+
+    it("keeps a picker's own selection visible in its panel", () => {
+        const [first] = mountTwo(["Anima"], []);
+        click(trigger(first));
+        expect(isTaken(first, "Anima")).toBe(false);
+    });
+
+    it("marks a value taken in other pickers as soon as it is checked", () => {
+        const [first, second] = mountTwo([], []);
+        click(trigger(first));
+        const pony = checkbox(first, "Pony");
+        pony.checked = true;
+        change(pony);
+        expect(isTaken(second, "Pony")).toBe(true);
+    });
+
+    it("reveals an option again when the other picker's pill removes it", () => {
+        const [first, second] = mountTwo(["Anima"], []);
+        click(trigger(second));
+        expect(isTaken(second, "Anima")).toBe(true);
+        click(
+            first.querySelector(
+                '[data-wtd-arch-pill-remove][data-value="Anima"]',
+            ) as Element,
+        );
+        expect(isTaken(second, "Anima")).toBe(false);
+    });
+
+    it("frees every value when the other picker is cleared", () => {
+        const [first, second] = mountTwo(["Anima", "Pony"], []);
+        click(trigger(first));
+        click(first.querySelector("[data-wtd-arch-clear]") as Element);
+        expect(isTaken(second, "Anima")).toBe(false);
+        expect(isTaken(second, "Pony")).toBe(false);
+    });
+
+    it("keeps a pre-existing duplicate visible wherever it is checked", () => {
+        const [first, second] = mountTwo(["Anima"], ["Anima"]);
+        click(trigger(first));
+        expect(isTaken(first, "Anima")).toBe(false);
+        click(trigger(second));
+        expect(isTaken(second, "Anima")).toBe(false);
     });
 });
 

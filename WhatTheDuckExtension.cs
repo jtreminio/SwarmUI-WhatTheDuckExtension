@@ -13,9 +13,10 @@ public class WhatTheDuckExtension : Extension
 
     public static bool KeyboardNavigationEnabled { get; set; } = true;
 
-    /// <summary>Civitai architecture-to-folder mappings, as an array of
-    /// { architecture, checkpointFolder, loraFolder } objects.</summary>
-    public static JArray CivitaiFolderMappings { get; set; } = [];
+    /// <summary>Architecture-to-folder mappings, as an array of
+    /// { architectures, checkpointFolder, loraFolder } objects, where architectures
+    /// holds SwarmUI compat-class IDs (e.g. "flux-1", "stable-diffusion-xl-v1").</summary>
+    public static JArray ArchFolderMappings { get; set; } = [];
 
     public override void OnPreInit()
     {
@@ -39,6 +40,7 @@ public class WhatTheDuckExtension : Extension
         API.RegisterAPICall(WhatTheDuckSaveSettings, true, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(WhatTheDuckRefreshDatadump, true, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(PromptEditApi.WhatTheDuckEditPrompt, true, Permissions.FundamentalGenerateTabAccess);
+        API.RegisterAPICall(ArchDetectionApi.WhatTheDuckDetectModelArch, false, Permissions.FundamentalGenerateTabAccess);
     }
 
     public override void OnShutdown()
@@ -69,9 +71,9 @@ public class WhatTheDuckExtension : Extension
                 {
                     DatadumpManager.DatadumpFolder = datadumpFolderToken.Value<string>();
                 }
-                if (settings.TryGetValue("civitaiFolderMappings", out JToken civitaiMappingsToken) && civitaiMappingsToken is JArray civitaiMappings)
+                if (settings.TryGetValue("archFolderMappings", out JToken archMappingsToken) && archMappingsToken is JArray archMappings)
                 {
-                    CivitaiFolderMappings = SanitizeCivitaiMappings(civitaiMappings);
+                    ArchFolderMappings = SanitizeArchMappings(archMappings);
                 }
 
                 foreach (var setting in settings.Properties())
@@ -95,7 +97,7 @@ public class WhatTheDuckExtension : Extension
                 ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
                 ["datadumpEnabled"] = DatadumpManager.Enabled,
                 ["datadumpFolder"] = DatadumpManager.DatadumpFolder,
-                ["civitaiFolderMappings"] = CivitaiFolderMappings
+                ["archFolderMappings"] = ArchFolderMappings
             };
             File.WriteAllText(SettingsFilePath, settings.ToString());   
 
@@ -111,11 +113,8 @@ public class WhatTheDuckExtension : Extension
     }
 
     /// <summary>Filter an untrusted mappings array down to well-formed rows:
-    /// at least one architecture plus at least one folder, all values trimmed.
-    /// Accepts both the current `architectures` array shape and the legacy
-    /// single-string `architecture` key (pre-multi-select settings files),
-    /// always emitting the array shape.</summary>
-    private static JArray SanitizeCivitaiMappings(JArray raw)
+    /// at least one architecture plus at least one folder, all values trimmed.</summary>
+    private static JArray SanitizeArchMappings(JArray raw)
     {
         JArray result = [];
         foreach (JToken token in raw)
@@ -125,22 +124,17 @@ public class WhatTheDuckExtension : Extension
                 continue;
             }
             JArray architectures = [];
-            void AddArchitecture(string value)
-            {
-                value = value?.Trim() ?? "";
-                if (value != "" && !architectures.Any(t => t.Value<string>() == value))
-                {
-                    architectures.Add(value);
-                }
-            }
             if (obj["architectures"] is JArray archArray)
             {
                 foreach (JToken archToken in archArray)
                 {
-                    AddArchitecture(archToken.Type == JTokenType.String ? archToken.Value<string>() : null);
+                    string value = archToken.Type == JTokenType.String ? archToken.Value<string>().Trim() : "";
+                    if (value != "" && !architectures.Any(t => t.Value<string>() == value))
+                    {
+                        architectures.Add(value);
+                    }
                 }
             }
-            AddArchitecture(obj.Value<string>("architecture"));
             string checkpointFolder = obj.Value<string>("checkpointFolder")?.Trim() ?? "";
             string loraFolder = obj.Value<string>("loraFolder")?.Trim() ?? "";
             if (architectures.Count == 0 || (checkpointFolder == "" && loraFolder == ""))
@@ -172,11 +166,12 @@ public class WhatTheDuckExtension : Extension
             ["datadumpCount"] = DatadumpManager.Count,
             ["datadumpActive"] = DatadumpManager.IsActive,
             ["modifiedPlaceholders"] = new JArray(DatadumpManager.GetModifiedPlaceholders()),
-            ["civitaiFolderMappings"] = CivitaiFolderMappings
+            ["archFolderMappings"] = ArchFolderMappings,
+            ["architectures"] = ArchDetectionApi.ListArchitectures()
         };
     }
 
-    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool datadumpEnabled = false, string datadumpFolder = "", string civitaiFolderMappings = null)
+    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool datadumpEnabled = false, string datadumpFolder = "", string archFolderMappings = null)
     {
         try
         {
@@ -184,9 +179,9 @@ public class WhatTheDuckExtension : Extension
             DatadumpManager.Enabled = datadumpEnabled;
             DatadumpManager.DatadumpFolder = datadumpFolder ?? "";
             // Null means the caller didn't send the field; don't wipe saved mappings.
-            if (civitaiFolderMappings is not null)
+            if (archFolderMappings is not null)
             {
-                CivitaiFolderMappings = SanitizeCivitaiMappings(JArray.Parse(string.IsNullOrWhiteSpace(civitaiFolderMappings) ? "[]" : civitaiFolderMappings));
+                ArchFolderMappings = SanitizeArchMappings(JArray.Parse(string.IsNullOrWhiteSpace(archFolderMappings) ? "[]" : archFolderMappings));
             }
             DatadumpManager.SyncPlaceholders();
             SaveSettings();

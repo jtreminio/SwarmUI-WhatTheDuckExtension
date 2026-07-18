@@ -1,16 +1,9 @@
 /**
- * Civitai Architecture Picker
- *
- * The architecture control for a Civitai Auto-Folders mapping row. Closed, it
- * is a SwarmUI-dropdown-styled control showing the selection as removable
- * pills (each pill's ✕ removes that architecture without opening anything).
- * Clicking it opens a floating panel with a filter input and a checkbox list
- * of every architecture; the panel STAYS OPEN while multiple boxes are
- * toggled, closing only on outside click, Esc, or clicking the control again.
- *
- * A hidden native `<select multiple class="wtd-civitai-arch">` inside the
- * control mirrors the selection at all times, so `readCivitaiMappings` in
- * settings.ts keeps reading `selectedOptions` with no changes.
+ * Multi-select architecture picker for a Model Auto-Folders mapping row:
+ * removable pills when closed, a filterable checkbox panel when open (stays
+ * open while toggling; closes on outside click, Esc, or the trigger). A
+ * hidden native `<select multiple class="wtd-arch-select">` mirrors the
+ * selection, which is what `readArchMappings` in settings.ts reads.
  */
 
 import { escapeAttr, escapeHtml } from "./escape";
@@ -31,11 +24,10 @@ export const renderArchPills = (selected: string[]): string => {
 };
 
 /**
- * The full picker control. `options` is the known architecture list; selected
- * values missing from it (e.g. civitai added one after the last sync) are
+ * The full picker control. Selected values missing from `options` are
  * injected so saved settings always round-trip.
  */
-export const renderCivitaiArchPicker = (
+export const renderArchPicker = (
     selected: string[],
     options: string[],
 ): string => {
@@ -59,7 +51,7 @@ export const renderCivitaiArchPicker = (
         .join("");
     return `
             <div class="wtd-arch-picker" data-wtd-arch-picker>
-                <select class="wtd-civitai-arch" multiple hidden>${hiddenOptions}</select>
+                <select class="wtd-arch-select" multiple hidden>${hiddenOptions}</select>
                 <div class="wtd-arch-trigger" data-wtd-arch-trigger role="button" tabindex="0" title="Architectures - click to edit">
                     <span class="wtd-arch-pills" data-wtd-arch-pills>${renderArchPills(selected)}</span>
                     <span class="wtd-arch-caret">▾</span>
@@ -84,15 +76,11 @@ const selectedValues = (picker: Element): string[] =>
         .filter((box) => box.checked)
         .map((box) => box.value);
 
-/**
- * Propagate the checkbox state to the hidden native select, the pill area,
- * and the "N selected" count. The checkboxes are the interaction surface; the
- * hidden select is what the save path reads.
- */
+/** Propagate the checkbox state to the hidden select, pills, and count. */
 export const syncPicker = (picker: Element): void => {
     const selected = selectedValues(picker);
     const hiddenSelect = picker.querySelector<HTMLSelectElement>(
-        "select.wtd-civitai-arch",
+        "select.wtd-arch-select",
     );
     if (hiddenSelect) {
         for (const option of Array.from(hiddenSelect.options)) {
@@ -109,11 +97,23 @@ export const syncPicker = (picker: Element): void => {
     }
 };
 
-/**
- * Decide whether the panel should open upward: only when it doesn't fit below
- * the trigger AND there is more room above than below. `margin` accounts for
- * the gap between trigger and panel plus a little breathing room.
- */
+export const refreshTakenOptions = (root: Document): void => {
+    const pickers = Array.from(root.querySelectorAll("[data-wtd-arch-picker]"));
+    const selections = pickers.map((picker) => selectedValues(picker));
+    for (const [i, picker] of pickers.entries()) {
+        const taken = new Set(selections.filter((_, j) => j !== i).flat());
+        for (const box of Array.from(
+            picker.querySelectorAll<HTMLInputElement>("[data-wtd-arch-check]"),
+        )) {
+            box.closest(".wtd-arch-option")?.classList.toggle(
+                "wtd-arch-option-taken",
+                taken.has(box.value) && !box.checked,
+            );
+        }
+    }
+};
+
+/** Open upward only when the panel doesn't fit below and there is more room above. */
 export const shouldOpenUpward = (
     spaceAbove: number,
     spaceBelow: number,
@@ -129,9 +129,8 @@ const setPanelOpen = (picker: Element, open: boolean): void => {
     panel.hidden = !open;
     if (open) {
         syncPicker(picker);
-        // Measure AFTER unhiding (offsetHeight is 0 while hidden) and flip
-        // the panel above the trigger when it would extend past the bottom of
-        // the viewport, so the user never has to scroll to reach options.
+        refreshTakenOptions(picker.ownerDocument);
+        // Measure AFTER unhiding: offsetHeight is 0 while hidden.
         panel.classList.remove("wtd-arch-panel-up");
         const trigger = picker.querySelector<HTMLElement>(
             "[data-wtd-arch-trigger]",
@@ -192,11 +191,8 @@ const removeValue = (picker: Element, value: string): void => {
 
 let started = false;
 
-/**
- * Install document-level delegated handlers once. Delegation means rows added
- * later via "+ Add Mapping" (or re-rendered on load/save) need no re-wiring.
- */
-export const initCivitaiArchPickers = (root: Document): void => {
+/** Install document-level delegated handlers once, so added/re-rendered rows need no re-wiring. */
+export const initArchPickers = (root: Document): void => {
     if (started) {
         return;
     }
@@ -214,6 +210,7 @@ export const initCivitaiArchPickers = (root: Document): void => {
             const picker = pillRemove.closest("[data-wtd-arch-picker]");
             if (picker) {
                 removeValue(picker, pillRemove.dataset.value ?? "");
+                refreshTakenOptions(root);
             }
             // Removing a pill must not toggle the panel underneath it.
             e.stopPropagation();
@@ -227,8 +224,6 @@ export const initCivitaiArchPickers = (root: Document): void => {
                     "[data-wtd-arch-panel]",
                 );
                 closeAllPanels(root, picker);
-                // `hidden` is boolean|string in the DOM lib (until-found);
-                // treat any truthy value as hidden -> toggle to open.
                 setPanelOpen(picker, panel ? Boolean(panel.hidden) : true);
             }
             return;
@@ -245,11 +240,10 @@ export const initCivitaiArchPickers = (root: Document): void => {
                     box.checked = false;
                 }
                 syncPicker(picker);
+                refreshTakenOptions(root);
             }
             return;
         }
-        // A click anywhere inside an open panel (checkboxes, filter, labels)
-        // keeps it open; anything outside every picker closes them all.
         if (!target.closest("[data-wtd-arch-picker]")) {
             closeAllPanels(root);
         }
@@ -263,6 +257,7 @@ export const initCivitaiArchPickers = (root: Document): void => {
         const picker = target.closest("[data-wtd-arch-picker]");
         if (picker) {
             syncPicker(picker);
+            refreshTakenOptions(root);
         }
     });
 
