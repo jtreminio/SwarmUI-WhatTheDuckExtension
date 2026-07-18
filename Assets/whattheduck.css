@@ -177,3 +177,143 @@
 #wtd_prompt_edit_modal .modal-content {
     width: 100%;
 }
+
+/* Civitai Auto-Folders feature */
+.whattheduck-civitai-row {
+    display: flex;
+    gap: 0.4rem;
+    /* The architecture multi-select is taller than the folder dropdowns; top
+       alignment keeps the folder selects and remove button on the first line. */
+    align-items: flex-start;
+    margin-bottom: 0.35rem;
+}
+
+.whattheduck-civitai-row .wtd-arch-picker {
+    position: relative;
+    flex: 1.4 1 0;
+    min-width: 0;
+}
+
+/* Closed state: pills inside a control styled like SwarmUI's dropdowns. */
+.wtd-arch-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 2rem;
+    padding: 0.2rem 0.5rem;
+    background-color: var(--background);
+    border: 1px solid var(--shadow);
+    border-radius: 0.5rem;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+.wtd-arch-trigger:focus-visible {
+    outline: 1px solid var(--emphasis);
+}
+.wtd-arch-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.wtd-arch-placeholder {
+    color: var(--text-soft);
+}
+.wtd-arch-caret {
+    color: var(--text-soft);
+    flex: none;
+}
+.wtd-arch-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.05rem 0.25rem 0.05rem 0.55rem;
+    background-color: var(--box-selected-background);
+    border: 1px solid var(--box-selected-border);
+    border-radius: 1rem;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+.wtd-arch-pill-x {
+    border: none;
+    background: none;
+    color: var(--text-soft);
+    cursor: pointer;
+    padding: 0 0.2rem;
+    font-size: 1em;
+    line-height: 1;
+}
+.wtd-arch-pill-x:hover {
+    color: var(--text);
+}
+
+/* Open state: floating filter + checkbox panel; stays open during selection. */
+.wtd-arch-panel {
+    position: absolute;
+    z-index: 100;
+    top: calc(100% + 0.25rem);
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    background-color: var(--background);
+    border: 1px solid var(--shadow);
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 45%);
+    box-sizing: border-box;
+}
+.wtd-arch-panel[hidden] {
+    display: none;
+}
+/* Flipped above the trigger when the viewport has no room below. */
+.wtd-arch-panel.wtd-arch-panel-up {
+    top: auto;
+    bottom: calc(100% + 0.25rem);
+}
+.wtd-arch-filter {
+    width: 100%;
+    box-sizing: border-box;
+}
+.wtd-arch-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 14rem;
+    overflow-y: auto;
+}
+.wtd-arch-option {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.15rem 0.25rem;
+    margin: 0;
+    border-radius: 0.3rem;
+    cursor: pointer;
+}
+.wtd-arch-option:hover {
+    background-color: var(--background-soft);
+}
+.wtd-arch-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.wtd-arch-count {
+    color: var(--text-soft);
+    font-size: 0.85em;
+}
+
+.whattheduck-civitai-row select {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.whattheduck-civitai-row .wtd-civitai-remove {
+    flex: 0 0 auto;
+}
+
+.whattheduck-civitai-actions {
+    margin-top: 0.5rem;
+}

@@ -13,6 +13,10 @@ public class WhatTheDuckExtension : Extension
 
     public static bool KeyboardNavigationEnabled { get; set; } = true;
 
+    /// <summary>Civitai architecture-to-folder mappings, as an array of
+    /// { architecture, checkpointFolder, loraFolder } objects.</summary>
+    public static JArray CivitaiFolderMappings { get; set; } = [];
+
     public override void OnPreInit()
     {
         ScriptFiles.Add("Assets/whattheduck.js");
@@ -65,6 +69,10 @@ public class WhatTheDuckExtension : Extension
                 {
                     DatadumpManager.DatadumpFolder = datadumpFolderToken.Value<string>();
                 }
+                if (settings.TryGetValue("civitaiFolderMappings", out JToken civitaiMappingsToken) && civitaiMappingsToken is JArray civitaiMappings)
+                {
+                    CivitaiFolderMappings = SanitizeCivitaiMappings(civitaiMappings);
+                }
 
                 foreach (var setting in settings.Properties())
                 {
@@ -86,7 +94,8 @@ public class WhatTheDuckExtension : Extension
             {
                 ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
                 ["datadumpEnabled"] = DatadumpManager.Enabled,
-                ["datadumpFolder"] = DatadumpManager.DatadumpFolder
+                ["datadumpFolder"] = DatadumpManager.DatadumpFolder,
+                ["civitaiFolderMappings"] = CivitaiFolderMappings
             };
             File.WriteAllText(SettingsFilePath, settings.ToString());   
 
@@ -99,6 +108,53 @@ public class WhatTheDuckExtension : Extension
         {
             Logs.Warning($"WhatTheDuck: Failed to save settings: {ex.Message}");
         }
+    }
+
+    /// <summary>Filter an untrusted mappings array down to well-formed rows:
+    /// at least one architecture plus at least one folder, all values trimmed.
+    /// Accepts both the current `architectures` array shape and the legacy
+    /// single-string `architecture` key (pre-multi-select settings files),
+    /// always emitting the array shape.</summary>
+    private static JArray SanitizeCivitaiMappings(JArray raw)
+    {
+        JArray result = [];
+        foreach (JToken token in raw)
+        {
+            if (token is not JObject obj)
+            {
+                continue;
+            }
+            JArray architectures = [];
+            void AddArchitecture(string value)
+            {
+                value = value?.Trim() ?? "";
+                if (value != "" && !architectures.Any(t => t.Value<string>() == value))
+                {
+                    architectures.Add(value);
+                }
+            }
+            if (obj["architectures"] is JArray archArray)
+            {
+                foreach (JToken archToken in archArray)
+                {
+                    AddArchitecture(archToken.Type == JTokenType.String ? archToken.Value<string>() : null);
+                }
+            }
+            AddArchitecture(obj.Value<string>("architecture"));
+            string checkpointFolder = obj.Value<string>("checkpointFolder")?.Trim() ?? "";
+            string loraFolder = obj.Value<string>("loraFolder")?.Trim() ?? "";
+            if (architectures.Count == 0 || (checkpointFolder == "" && loraFolder == ""))
+            {
+                continue;
+            }
+            result.Add(new JObject
+            {
+                ["architectures"] = architectures,
+                ["checkpointFolder"] = checkpointFolder,
+                ["loraFolder"] = loraFolder
+            });
+        }
+        return result;
     }
 
     #endregion
@@ -115,17 +171,23 @@ public class WhatTheDuckExtension : Extension
             ["datadumpFolder"] = DatadumpManager.DatadumpFolder,
             ["datadumpCount"] = DatadumpManager.Count,
             ["datadumpActive"] = DatadumpManager.IsActive,
-            ["modifiedPlaceholders"] = new JArray(DatadumpManager.GetModifiedPlaceholders())
+            ["modifiedPlaceholders"] = new JArray(DatadumpManager.GetModifiedPlaceholders()),
+            ["civitaiFolderMappings"] = CivitaiFolderMappings
         };
     }
 
-    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool datadumpEnabled = false, string datadumpFolder = "")
+    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool datadumpEnabled = false, string datadumpFolder = "", string civitaiFolderMappings = null)
     {
         try
         {
             KeyboardNavigationEnabled = keyboardNavigationEnabled;
             DatadumpManager.Enabled = datadumpEnabled;
             DatadumpManager.DatadumpFolder = datadumpFolder ?? "";
+            // Null means the caller didn't send the field; don't wipe saved mappings.
+            if (civitaiFolderMappings is not null)
+            {
+                CivitaiFolderMappings = SanitizeCivitaiMappings(JArray.Parse(string.IsNullOrWhiteSpace(civitaiFolderMappings) ? "[]" : civitaiFolderMappings));
+            }
             DatadumpManager.SyncPlaceholders();
             SaveSettings();
             WildcardHandler.OnSettingsChanged();

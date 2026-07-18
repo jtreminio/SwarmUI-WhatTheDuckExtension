@@ -1,5 +1,17 @@
 import { initBatchCompare } from "./batchCompare";
+import {
+    initCivitaiArchPickers,
+    renderCivitaiArchPicker,
+} from "./civitaiArchPicker";
+import {
+    type CivitaiFolderMapping,
+    foldersFromModelList,
+    KNOWN_ARCHITECTURES,
+    normalizeMappings,
+    setCivitaiFolderMappings,
+} from "./civitaiFolders";
 import { initCompareShortcuts } from "./compareShortcuts";
+import { escapeAttr, escapeHtml } from "./escape";
 import { initKeyboardNavigation } from "./keyboardNavigation";
 
 interface WhatTheDuckSettingsResponse {
@@ -10,6 +22,7 @@ interface WhatTheDuckSettingsResponse {
     datadumpActive?: boolean;
     datadumpCount?: number;
     modifiedPlaceholders?: string[];
+    civitaiFolderMappings?: unknown;
     message?: string;
     error?: string;
 }
@@ -18,18 +31,101 @@ export interface SettingsFormState {
     keyboardNavigationEnabled: boolean;
     datadumpEnabled: boolean;
     datadumpFolder: string;
+    civitaiFolderMappings: CivitaiFolderMapping[];
 }
 
 const STATUS_TIMEOUT_MS = 5000;
 
 // --- Pure helpers (no I/O; directly unit-testable) ---------------------------
 
-/** HTML-escape arbitrary text by round-tripping it through a detached element. */
-export const escapeHtml = (text: string): string => {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+/** Option lists for the three dropdowns in a Civitai mapping row. */
+export interface CivitaiRowOptions {
+    architectures: string[];
+    checkpointFolders: string[];
+    loraFolders: string[];
+}
+
+/**
+ * A SwarmUI-styled dropdown for one mapping-row field. The empty-value
+ * placeholder option means "not set"; a current value missing from the option
+ * list (e.g. a folder whose models were removed, or an architecture civitai
+ * added after this list) is injected so saved settings always round-trip.
+ */
+export const renderCivitaiSelect = (
+    className: string,
+    placeholder: string,
+    options: string[],
+    value: string,
+): string => {
+    const withValue =
+        value && !options.includes(value) ? [...options, value] : options;
+    const optionsHtml = withValue
+        .map(
+            (opt) =>
+                `<option value="${escapeAttr(opt)}"${opt === value ? " selected" : ""}>${escapeHtml(opt)}</option>`,
+        )
+        .join("");
+    return `<select class="auto-dropdown ${className}" autocomplete="off"><option value="">${escapeHtml(placeholder)}</option>${optionsHtml}</select>`;
 };
+
+/** One editable Civitai architectures-to-folder mapping row. */
+export const renderCivitaiMappingRow = (
+    mapping: CivitaiFolderMapping,
+    options: CivitaiRowOptions,
+): string => `
+            <div class="whattheduck-civitai-row" data-wtd-civitai-row>
+                ${renderCivitaiArchPicker(mapping.architectures, options.architectures)}
+                ${renderCivitaiSelect("wtd-civitai-checkpoint", "(No checkpoint folder)", options.checkpointFolders, mapping.checkpointFolder)}
+                ${renderCivitaiSelect("wtd-civitai-lora", "(No LoRA folder)", options.loraFolders, mapping.loraFolder)}
+                <button type="button" class="basic-button wtd-civitai-remove" title="Remove this mapping">✕</button>
+            </div>`;
+
+/** All mapping rows for the Civitai Auto-Folders section. */
+export const renderCivitaiMappingRows = (
+    mappings: CivitaiFolderMapping[],
+    options: CivitaiRowOptions,
+): string => mappings.map((m) => renderCivitaiMappingRow(m, options)).join("");
+
+/**
+ * Live option lists for a mapping row: the bundled civitai architecture list
+ * plus the existing checkpoint/LoRA folders from SwarmUI's model listing
+ * (`coreModelMap` is guarded - jsdom tests don't define it and it fills
+ * asynchronously after page load).
+ */
+const getCivitaiRowOptions = (): CivitaiRowOptions => {
+    const map = typeof coreModelMap === "undefined" ? undefined : coreModelMap;
+    return {
+        architectures: KNOWN_ARCHITECTURES,
+        checkpointFolders: foldersFromModelList(
+            map?.["Stable-Diffusion"] ?? [],
+        ),
+        loraFolders: foldersFromModelList(map?.LoRA ?? []),
+    };
+};
+
+/**
+ * Read the current mapping rows back out of the DOM. Incomplete rows (no
+ * architecture selected, or neither folder set) are dropped, matching what
+ * the backend would persist anyway.
+ */
+export const readCivitaiMappings = (root: ParentNode): CivitaiFolderMapping[] =>
+    normalizeMappings(
+        Array.from(root.querySelectorAll("[data-wtd-civitai-row]")).map(
+            (row) => ({
+                architectures: Array.from(
+                    row.querySelector<HTMLSelectElement>(".wtd-civitai-arch")
+                        ?.selectedOptions ?? [],
+                ).map((option) => option.value),
+                checkpointFolder:
+                    row.querySelector<HTMLSelectElement>(
+                        ".wtd-civitai-checkpoint",
+                    )?.value ?? "",
+                loraFolder:
+                    row.querySelector<HTMLSelectElement>(".wtd-civitai-lora")
+                        ?.value ?? "",
+            }),
+        ),
+    );
 
 /** Inner HTML for the datadump status line. */
 export const renderDatadumpStatus = (
@@ -141,7 +237,7 @@ export const renderSettingsForm = (state: SettingsFormState): string => `
                                         <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_datadump_folder', arguments[0])">?</span>
                                     </span>
                                 </label>
-                                <input class="auto-text" type="text" id="whattheduck-datadump-folder" value="${state.datadumpFolder}" placeholder="/path/to/datadump" autocomplete="off">
+                                <input class="auto-text" type="text" id="whattheduck-datadump-folder" value="${escapeAttr(state.datadumpFolder)}" placeholder="/path/to/datadump" autocomplete="off">
                             </div>
                             <div class="sui-popover sui-info-popover" id="popover_whattheduck_datadump_folder">
                                 <b>Datadump Path</b> (string):<br>
@@ -173,6 +269,38 @@ export const renderSettingsForm = (state: SettingsFormState): string => `
                         </div>
                     </div>
 
+                    <div class="input-group input-group-open">
+                        <span class="input-group-header input-group-noshrink">
+                            <span class="header-label-wrap">
+                                <span class="header-label">📥 Civitai Auto-Folders</span>
+                            </span>
+                        </span>
+                        <div class="input-group-content">
+                            <div class="auto-input auto-input-flex">
+                                <span class="auto-input-name">
+                                    Folder by Architecture
+                                    <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_civitai_folders', arguments[0])">?</span>
+                                </span>
+                            </div>
+                            <div class="sui-popover sui-info-popover" id="popover_whattheduck_civitai_folders">
+                                <b>Civitai Auto-Folders</b> (mapping list):<br>
+                                <span class="slight-left-margin-block">
+                                    When the Model Downloader utility resolves a Civitai URL, the model's base architecture (e.g. <code>Anima</code>, <code>Pony</code>, <code>Illustrious</code>) is matched against this list and the mapped folder is auto-selected in the downloader's Folder dropdown.
+                                    <br>• <b>Architectures</b>: one or more of Civitai's "Base model" labels - click the control to open a searchable checklist (it stays open while you pick several, e.g. every "Flux.2 Klein" flavor in one row), or remove one via its pill's ✕. The label is shown on the download page after pasting a URL.
+                                    <br>• <b>Checkpoint folder</b>: folder auto-selected for checkpoint downloads. Leave unset to not auto-select checkpoints.
+                                    <br>• <b>LoRA folder</b>: folder auto-selected for LoRA downloads. Leave unset to not auto-select LoRAs.
+                                    <br>The folder lists show folders that already contain at least one model. To use a brand-new folder, download one model into it first by typing a path in the downloader's "Save as" box.
+                                </span>
+                            </div>
+
+                            <div id="whattheduck-civitai-mappings">${renderCivitaiMappingRows(state.civitaiFolderMappings, getCivitaiRowOptions())}</div>
+
+                            <div class="whattheduck-civitai-actions">
+                                <button type="button" id="whattheduck-civitai-add" class="basic-button">+ Add Mapping</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div id="whattheduck-status" class="whattheduck-status"></div>
 
                     <div class="whattheduck-actions">
@@ -187,6 +315,7 @@ export const renderSettingsForm = (state: SettingsFormState): string => `
 let keyboardNavigationEnabled = true;
 let datadumpEnabled = false;
 let datadumpFolder = "";
+let civitaiFolderMappings: CivitaiFolderMapping[] = [];
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
 // --- DOM read helpers --------------------------------------------------------
@@ -216,6 +345,22 @@ const applyModifiedPlaceholders = (modifiedList: string[]): void => {
     const html = renderModifiedPlaceholders(modifiedList);
     reportDiv.innerHTML = html;
     reportDiv.style.display = html ? "block" : "none";
+};
+
+/**
+ * Re-render the mapping rows (with fresh folder options from the live model
+ * listing) and remember them as the current state.
+ */
+const applyCivitaiMappings = (mappings: CivitaiFolderMapping[]): void => {
+    civitaiFolderMappings = mappings;
+    setCivitaiFolderMappings(mappings);
+    const container = document.getElementById("whattheduck-civitai-mappings");
+    if (container) {
+        container.innerHTML = renderCivitaiMappingRows(
+            mappings,
+            getCivitaiRowOptions(),
+        );
+    }
 };
 
 const showStatus = (message: string, type: "success" | "error"): void => {
@@ -272,6 +417,7 @@ const loadSettings = (): void => {
                 data.datadumpCount ?? 0,
             );
             applyModifiedPlaceholders(data.modifiedPlaceholders || []);
+            applyCivitaiMappings(normalizeMappings(data.civitaiFolderMappings));
 
             if (keyboardNavigationEnabled) {
                 initKeyboardNavigation();
@@ -286,6 +432,7 @@ const saveSettings = (): void => {
     const keyboardNav = readChecked("whattheduck-keyboard-nav");
     const nextDatadumpEnabled = readChecked("whattheduck-datadump-enabled");
     const nextDatadumpFolder = readValue("whattheduck-datadump-folder").trim();
+    const nextCivitaiMappings = readCivitaiMappings(document);
 
     genericRequest<WhatTheDuckSettingsResponse>(
         "WhatTheDuckSaveSettings",
@@ -293,12 +440,14 @@ const saveSettings = (): void => {
             keyboardNavigationEnabled: keyboardNav,
             datadumpEnabled: nextDatadumpEnabled,
             datadumpFolder: nextDatadumpFolder,
+            civitaiFolderMappings: JSON.stringify(nextCivitaiMappings),
         },
         (data) => {
             if (data.success) {
                 keyboardNavigationEnabled = keyboardNav;
                 datadumpEnabled = nextDatadumpEnabled;
                 datadumpFolder = nextDatadumpFolder;
+                applyCivitaiMappings(nextCivitaiMappings);
 
                 applyDatadumpStatus(
                     data.datadumpActive ?? false,
@@ -368,9 +517,11 @@ const init = (): void => {
         keyboardNavigationEnabled,
         datadumpEnabled,
         datadumpFolder,
+        civitaiFolderMappings,
     });
 
     loadSettings();
+    initCivitaiArchPickers(document);
 
     const form = document.getElementById("whattheduck-form");
     if (form) {
@@ -383,6 +534,34 @@ const init = (): void => {
     document
         .getElementById("whattheduck-refresh-datadump")
         ?.addEventListener("click", refreshDatadump);
+
+    document
+        .getElementById("whattheduck-civitai-add")
+        ?.addEventListener("click", () => {
+            document
+                .getElementById("whattheduck-civitai-mappings")
+                ?.insertAdjacentHTML(
+                    "beforeend",
+                    renderCivitaiMappingRow(
+                        {
+                            architectures: [],
+                            checkpointFolder: "",
+                            loraFolder: "",
+                        },
+                        getCivitaiRowOptions(),
+                    ),
+                );
+        });
+
+    // Row removal is delegated so rows added later are covered too.
+    document
+        .getElementById("whattheduck-civitai-mappings")
+        ?.addEventListener("click", (e) => {
+            const target = e.target as HTMLElement | null;
+            if (target?.closest(".wtd-civitai-remove")) {
+                target.closest("[data-wtd-civitai-row]")?.remove();
+            }
+        });
 };
 
 export const whatTheDuck = {

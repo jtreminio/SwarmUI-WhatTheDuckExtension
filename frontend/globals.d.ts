@@ -1,5 +1,43 @@
 declare function registerNewTool(id: string, name: string): HTMLElement;
 
+/**
+ * Callback signature of SwarmUI's `ModelDownloaderUtil.getCivitaiMetadata`.
+ * `rawData`/`rawVersion` are raw civitai API objects; on failure every
+ * argument except `errMsg` is null.
+ */
+type CivitaiMetadataCallback = (
+    rawData: { name?: string } | null,
+    rawVersion: { baseModel?: string; name?: string } | null,
+    metadata: Record<string, string> | null,
+    modelType: string | null,
+    downloadUrl: string | null,
+    img: string | null,
+    imgs: string[] | null,
+    errMsg: string | null,
+) => void;
+
+type CivitaiDelayedCallback = (img: string | null, imgs: string[]) => void;
+
+/** SwarmUI's global Model Downloader utility instance (utiltab.js). */
+declare var modelDownloader:
+    | {
+          url: HTMLInputElement;
+          folders: HTMLSelectElement;
+          getCivitaiMetadata(
+              id: string | null,
+              versId: string | null,
+              callback: CivitaiMetadataCallback,
+              identifier?: string,
+              validateSafe?: boolean,
+              delayedCallback?: CivitaiDelayedCallback | null,
+          ): void;
+      }
+    | undefined;
+
+/** SwarmUI's global model listing: model type (e.g. "Stable-Diffusion",
+ * "LoRA") to model names, where names may contain folder paths. */
+declare var coreModelMap: Record<string, string[]> | undefined;
+
 declare function genericRequest<T = unknown>(
     endpoint: string,
     data: Record<string, unknown>,

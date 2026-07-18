@@ -8,6 +8,7 @@
         "build": "npm run lint && npm run check && node ./scripts/build.mjs",
         "check": "npm run format:check && npm run lint && npm run typecheck",
         "clean": "rm -f Assets/whattheduck.js Assets/whattheduck.js.map",
+        "fetch:basemodels": "node ./scripts/fetch-civitai-basemodels.mjs",
         "format": "biome format --write .",
         "format:check": "biome format .",
         "lint": "biome check --write .",

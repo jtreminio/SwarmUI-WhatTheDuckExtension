@@ -18,6 +18,7 @@ Run from this extension's root directory (the folder that contains `package.json
 - `npm run test` — run the Jest unit-test suite (`frontend/**/*.test.ts`).
 - `npm run test:coverage` — run the tests with a coverage report written to `coverage/`.
 - `npm run clean` — remove the generated bundle and source map.
+- `npm run fetch:basemodels` — sync `data/civitai-base-models.json` (the civitai architecture list used by the Civitai Auto-Folders settings) from civitai's source constants + live API (`scripts/fetch-civitai-basemodels.mjs`). Rebuild the bundle afterwards so the list ships.
 
 Run `npm run test` after any change that touches the `frontend` TypeScript modules.
 
