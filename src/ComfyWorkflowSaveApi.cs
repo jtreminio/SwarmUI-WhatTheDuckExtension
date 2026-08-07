@@ -46,21 +46,31 @@ public static class ComfyWorkflowSaveApi
         return BareBase64Regex.Replace(text, match => CropBase64(match.Value));
     }
 
-    /// <summary>Walks a parsed JSON tree and crops the base64 out of every string value.</summary>
-    private static void StripBase64(JToken token)
+    /// <summary>Property name holding the caller's session token, blanked out of dumps.</summary>
+    public const string SessionIdKey = "session_id";
+
+    /// <summary>Walks a parsed JSON tree, crops the base64 out of every string value, and
+    /// clears the session token (which the frontend's request wrapper adds to the payload -
+    /// it's a live credential, and it's noise in a dump that gets shared around).</summary>
+    private static void CleanTree(JToken token)
     {
         switch (token)
         {
             case JObject obj:
                 foreach (JProperty prop in obj.Properties())
                 {
-                    StripBase64(prop.Value);
+                    if (prop.Name == SessionIdKey)
+                    {
+                        prop.Value = "";
+                        continue;
+                    }
+                    CleanTree(prop.Value);
                 }
                 break;
             case JArray array:
                 foreach (JToken item in array)
                 {
-                    StripBase64(item);
+                    CleanTree(item);
                 }
                 break;
             case JValue value when value.Type == JTokenType.String:
@@ -74,8 +84,9 @@ public static class ComfyWorkflowSaveApi
         }
     }
 
-    /// <summary>Pretty-prints <paramref name="raw"/> with embedded base64 cropped out. Text that
-    /// isn't valid JSON is still base64-stripped, just left unformatted.</summary>
+    /// <summary>Pretty-prints <paramref name="raw"/> with embedded base64 cropped out and the
+    /// session token cleared. Text that isn't valid JSON is still base64-stripped, just left
+    /// unformatted.</summary>
     public static string CleanForDump(string raw)
     {
         if (string.IsNullOrEmpty(raw))
@@ -91,7 +102,7 @@ public static class ComfyWorkflowSaveApi
         {
             return StripBase64(raw);
         }
-        StripBase64(parsed);
+        CleanTree(parsed);
         return parsed.ToString(Formatting.Indented);
     }
 
