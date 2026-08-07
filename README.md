@@ -46,7 +46,7 @@ The original prompt is still preserved: it is recorded as `original_prompt` in t
 
 ### Import & Save Comfy Workflow To Server
 
-Adds an **Import & Save To Server** button to the Comfy Workflow tab's button panel, right next to "Import From Generate Tab".
+Adds an **Import & Save To Server** button to the Comfy Workflow tab's button panel, on the Quick Load line, just below "Import From Generate Tab".
 
 It does everything the import button does — the current Generate tab parameters are sent to `API/ComfyGetGeneratedWorkflow` and the resulting workflow is loaded into the Comfy editor — and additionally writes both halves of that exchange to disk on the machine running SwarmUI:
 

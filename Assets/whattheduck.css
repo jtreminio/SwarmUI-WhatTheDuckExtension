@@ -321,9 +321,14 @@
     margin-top: 0.5rem;
 }
 
-/* Comfy Workflow tab: "Save To Server" button beside "Import From Generate Tab". */
-#wtd_comfy_save_workflow_button {
-    margin-left: 0.4rem;
+/* Comfy Workflow tab: the row holding the save button (the Quick Load block, or
+   a row of our own if that's gone). It clears the button row above it, and
+   contains its floats - both the save button and the Quick Load select - so the
+   panel's collapse toggle, which sits at the bottom of the flow, lands below
+   them instead of on top of the button. */
+.wtd-comfy-save-row {
+    clear: both;
+    overflow: hidden;
 }
 
 /* Transient "…" / "✓" marker on the Comfy tab's save button. */

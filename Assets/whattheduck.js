@@ -190,6 +190,8 @@
 
   // frontend/comfyWorkflowSave.ts
   var BUTTON_ID = "wtd_comfy_save_workflow_button";
+  var ROW_ID = "wtd_comfy_save_workflow_row";
+  var ROW_CLASS = "wtd-comfy-save-row";
   var BUTTON_LABEL = "Import & Save To Server";
   var BUTTON_TITLE = "Import the generate tab's workflow into the editor, and save it plus the payload it was built from as JSON files on the machine running SwarmUI.";
   var MARK_CLASS = "wtd-comfy-save-mark";
@@ -303,7 +305,20 @@
     btn.title = BUTTON_TITLE;
     btn.textContent = BUTTON_LABEL;
     btn.addEventListener("click", onSaveClick);
-    importBtn.insertAdjacentElement("afterend", btn);
+    const quickload = rootDoc.querySelector(
+      "#comfy_workflow_buttons .comfy_quickload"
+    );
+    if (quickload) {
+      quickload.classList.add(ROW_CLASS);
+      quickload.insertAdjacentElement("afterbegin", btn);
+      return true;
+    }
+    const row = rootDoc.createElement("div");
+    row.id = ROW_ID;
+    row.className = `comfy-second-button-row ${ROW_CLASS}`;
+    row.appendChild(btn);
+    const importRow = importBtn.closest(".comfy-second-button-row") ?? importBtn;
+    importRow.insertAdjacentElement("afterend", row);
     return true;
   }
   var init2 = () => {

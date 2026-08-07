@@ -18,6 +18,8 @@ import {
 type ComfyWorkflowSaveModule = typeof import("./comfyWorkflowSave");
 
 const BUTTON_ID = "wtd_comfy_save_workflow_button";
+const ROW_ID = "wtd_comfy_save_workflow_row";
+const ROW_CLASS = "wtd-comfy-save-row";
 
 const g = globalThis as unknown as Record<string, unknown>;
 
@@ -49,6 +51,9 @@ const buildPanel = (): void => {
             <div class="comfy-second-button-row">
                 <button class="basic-button comfy-small-button comfy-left-button translate" onclick="comfyImportWorkflow()">Import From Generate Tab</button>
                 <div id="comfy_multigpu"></div>
+            </div>
+            <div id="comfy_quickload" class="comfy_quickload">
+                <select id="comfy_quickload_select"></select>
             </div>
         </div>`;
 };
@@ -86,16 +91,29 @@ describe("comfyWorkflowSave", () => {
     });
 
     describe("injectSaveButton", () => {
-        it("inserts the button right after the import button", () => {
+        it("puts the button on the Quick Load line, left of the select", () => {
             buildPanel();
             expect(mod.injectSaveButton(document)).toBe(true);
-            const importBtn = document.querySelector(
-                'button[onclick*="comfyImportWorkflow"]',
-            );
+            const quickload = document.getElementById("comfy_quickload");
             const btn = document.getElementById(BUTTON_ID);
             expect(btn).not.toBeNull();
-            expect(importBtn?.nextElementSibling).toBe(btn);
+            expect(quickload?.firstElementChild).toBe(btn);
+            expect(quickload?.classList.contains(ROW_CLASS)).toBe(true);
             expect(btn?.className).toContain("comfy-small-button");
+        });
+
+        it("falls back to a row of its own when Quick Load is missing", () => {
+            buildPanel();
+            document.getElementById("comfy_quickload")?.remove();
+            expect(mod.injectSaveButton(document)).toBe(true);
+            const importRow = document.querySelector(
+                ".comfy-second-button-row",
+            );
+            const btn = document.getElementById(BUTTON_ID);
+            const row = document.getElementById(ROW_ID);
+            expect(row?.contains(btn as Node)).toBe(true);
+            expect(row?.classList.contains(ROW_CLASS)).toBe(true);
+            expect(importRow?.nextElementSibling).toBe(row);
         });
 
         it("is idempotent", () => {

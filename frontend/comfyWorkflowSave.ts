@@ -1,8 +1,8 @@
 /**
  * Comfy Workflow Save Module
  *
- * Adds a "Save To Server" button to the Comfy Workflow tab's button panel,
- * immediately after the core "Import From Generate Tab" button
+ * Adds a "Save To Server" button to the Comfy Workflow tab's button panel, on
+ * the Quick Load line below the core "Import From Generate Tab" button
  * (`comfyImportWorkflow()`).
  *
  * Clicking it does everything the import button does — build the current
@@ -20,6 +20,8 @@
  */
 
 const BUTTON_ID = "wtd_comfy_save_workflow_button";
+const ROW_ID = "wtd_comfy_save_workflow_row";
+const ROW_CLASS = "wtd-comfy-save-row";
 const BUTTON_LABEL = "Import & Save To Server";
 const BUTTON_TITLE =
     "Import the generate tab's workflow into the editor, and save it plus the " +
@@ -178,9 +180,14 @@ export const onSaveClick = (): void => {
 // --- Button injection (DOM-only; testable) ----------------------------------
 
 /**
- * Insert the save button directly after the core "Import From Generate Tab"
- * button. Idempotent, and a no-op (returning false) while the comfy button
- * panel is not in the DOM yet.
+ * Insert the save button on the Quick Load line, floated left of the Quick Load
+ * dropdown - so it pairs with that select the way "Import From Generate Tab"
+ * pairs with the MultiGPU one, rather than leaving a half-empty row of its own.
+ * The core "second button row" can't hold it: that row is a fixed 1.5rem tall,
+ * so a second button dropped in it wraps out of the row and lands under the
+ * panel's collapse toggle. Falls back to a row of its own if the Quick Load
+ * block is missing. Idempotent, and a no-op (returning false) while the comfy
+ * button panel is not in the DOM yet.
  */
 export function injectSaveButton(rootDoc: Document): boolean {
     if (rootDoc.getElementById(BUTTON_ID)) {
@@ -199,7 +206,21 @@ export function injectSaveButton(rootDoc: Document): boolean {
     btn.title = BUTTON_TITLE;
     btn.textContent = BUTTON_LABEL;
     btn.addEventListener("click", onSaveClick);
-    importBtn.insertAdjacentElement("afterend", btn);
+    const quickload = rootDoc.querySelector(
+        "#comfy_workflow_buttons .comfy_quickload",
+    );
+    if (quickload) {
+        quickload.classList.add(ROW_CLASS);
+        quickload.insertAdjacentElement("afterbegin", btn);
+        return true;
+    }
+    const row = rootDoc.createElement("div");
+    row.id = ROW_ID;
+    row.className = `comfy-second-button-row ${ROW_CLASS}`;
+    row.appendChild(btn);
+    const importRow =
+        importBtn.closest(".comfy-second-button-row") ?? importBtn;
+    importRow.insertAdjacentElement("afterend", row);
     return true;
 }
 
