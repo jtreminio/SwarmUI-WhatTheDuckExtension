@@ -192,15 +192,43 @@
   var BUTTON_ID = "wtd_comfy_save_workflow_button";
   var BUTTON_LABEL = "Import & Save To Server";
   var BUTTON_TITLE = "Import the generate tab's workflow into the editor, and save it plus the payload it was built from as JSON files on the machine running SwarmUI.";
+  var MARK_CLASS = "wtd-comfy-save-mark";
+  var BUSY_MARK = "…";
+  var DONE_MARK = "✓";
+  var DONE_TIMEOUT_MS = 2500;
   var started2 = false;
-  var buildClipboardLine = (res) => `Payload: ${res.payloadPath ?? ""}, Generated Workflow: ${res.workflowPath ?? ""}`;
-  var notice = (message) => {
-    if (typeof comfyNoticeMessage === "function") {
-      comfyNoticeMessage(message);
+  var markTimer = null;
+  var buildClipboardLine = (res) => {
+    const payload = res.payloadLocalPath || res.payloadPath || "";
+    const workflow = res.workflowLocalPath || res.workflowPath || "";
+    return `Payload: ${payload}, Generated Workflow: ${workflow}`;
+  };
+  var setButtonMark = (mark, timeoutMs = 0, rootDoc = document) => {
+    const btn = rootDoc.getElementById(BUTTON_ID);
+    if (!btn) {
       return;
     }
-    if (typeof doNoticePopover === "function") {
-      doNoticePopover(message, "notice-pop-green");
+    if (markTimer !== null) {
+      clearTimeout(markTimer);
+      markTimer = null;
+    }
+    let span = btn.querySelector(`.${MARK_CLASS}`);
+    if (!mark) {
+      span?.remove();
+      return;
+    }
+    if (!span) {
+      span = rootDoc.createElement("span");
+      span.className = MARK_CLASS;
+      btn.appendChild(span);
+    }
+    span.textContent = mark;
+    if (timeoutMs > 0) {
+      const shown = span;
+      markTimer = setTimeout(() => {
+        shown.remove();
+        markTimer = null;
+      }, timeoutMs);
     }
   };
   var loadWorkflowIntoEditor = (workflow) => {
@@ -222,12 +250,13 @@
       return;
     }
     const payload = getGenInput();
-    notice("Importing and saving workflow...");
+    setButtonMark(BUSY_MARK);
     genericRequest(
       "ComfyGetGeneratedWorkflow",
       payload,
       (data) => {
         if (!data?.workflow) {
+          setButtonMark("");
           showError(data?.error || "No workflow found.");
           return;
         }
@@ -244,15 +273,14 @@
           },
           (res) => {
             if (!res?.success) {
+              setButtonMark("");
               showError(res?.error || "Failed to save workflow.");
               return;
             }
             if (typeof copyText === "function") {
               copyText(buildClipboardLine(res));
             }
-            notice(
-              `Saved to ${res.folder} (paths copied to clipboard)`
-            );
+            setButtonMark(DONE_MARK, DONE_TIMEOUT_MS);
           }
         );
       }
@@ -1164,6 +1192,8 @@
 
   // frontend/settings.ts
   var STATUS_TIMEOUT_MS = 5e3;
+  var SERVER_PATH_PLACEHOLDER_FALLBACK = "/path/to/SwarmUI";
+  var serverPathPlaceholder = (serverRootPath2) => serverRootPath2?.trim() || SERVER_PATH_PLACEHOLDER_FALLBACK;
   var renderMappingSelect = (className, placeholder, options, value) => {
     const withValue = value && !options.includes(value) ? [...options, value] : options;
     const optionsHtml = withValue.map(
@@ -1355,6 +1385,44 @@
                         </div>
                     </div>
 
+                    <div class="input-group input-group-open">
+                        <span class="input-group-header input-group-noshrink">
+                            <span class="header-label-wrap">
+                                <span class="header-label">🧩 Comfy Workflow Dump</span>
+                            </span>
+                        </span>
+                        <div class="input-group-content">
+                            <div class="auto-input auto-input-flex">
+                                <label for="whattheduck-clipboard-from">
+                                    <span class="auto-input-name">
+                                        Server Path Prefix
+                                        <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_clipboard_paths', arguments[0])">?</span>
+                                    </span>
+                                </label>
+                                <input class="auto-text" type="text" id="whattheduck-clipboard-from" value="${escapeAttr(state.clipboardPathFrom)}" placeholder="${escapeAttr(serverPathPlaceholder(state.serverRootPath))}" autocomplete="off">
+                            </div>
+                            <div class="auto-input auto-input-flex">
+                                <label for="whattheduck-clipboard-to">
+                                    <span class="auto-input-name">
+                                        Local Path Prefix
+                                        <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_clipboard_paths', arguments[0])">?</span>
+                                    </span>
+                                </label>
+                                <input class="auto-text" type="text" id="whattheduck-clipboard-to" value="${escapeAttr(state.clipboardPathTo)}" placeholder="~/swarm-data" autocomplete="off">
+                            </div>
+                            <div class="sui-popover sui-info-popover" id="popover_whattheduck_clipboard_paths">
+                                <b>Server / Local Path Prefix</b> (string pair):<br>
+                                <span class="slight-left-margin-block">
+                                    Rewrites the file paths that the Comfy Workflow tab's "Import &amp; Save To Server" button copies to your clipboard, for when SwarmUI sees a different filesystem than you do (a container, a network share, a remote box).
+                                    <br>• <b>Server Path Prefix</b>: the directory as SwarmUI sees it, e.g. <code>/workspace</code> - the box's placeholder shows SwarmUI's own base path.
+                                    <br>• <b>Local Path Prefix</b>: the same directory as your editor sees it, e.g. <code>~/swarm-data</code>.
+                                    <br>Files are still <b>saved</b> to the real server path; only the copied text is rewritten. A path outside the prefix, or an empty pair, is copied unchanged.
+                                </span>
+                                <br>Example: <code>/workspace/Data/WhatTheDuck/...</code> is copied as <code>~/swarm-data/Data/WhatTheDuck/...</code>
+                            </div>
+                        </div>
+                    </div>
+
                     <div id="whattheduck-status" class="whattheduck-status"></div>
 
                     <div class="whattheduck-actions">
@@ -1367,6 +1435,9 @@
   var datadumpEnabled = false;
   var datadumpFolder = "";
   var archFolderMappings = [];
+  var clipboardPathFrom = "";
+  var clipboardPathTo = "";
+  var serverRootPath = "";
   var knownArchitectures = [];
   var statusTimer = null;
   var readChecked = (id) => document.getElementById(id)?.checked ?? false;
@@ -1426,6 +1497,9 @@
         keyboardNavigationEnabled = data.keyboardNavigationEnabled ?? false;
         datadumpEnabled = data.datadumpEnabled ?? false;
         datadumpFolder = data.datadumpFolder || "";
+        clipboardPathFrom = data.clipboardPathFrom || "";
+        clipboardPathTo = data.clipboardPathTo || "";
+        serverRootPath = data.serverRootPath || "";
         document.getElementById(
           "whattheduck-keyboard-nav"
         ).checked = keyboardNavigationEnabled;
@@ -1435,6 +1509,19 @@
         document.getElementById(
           "whattheduck-datadump-folder"
         ).value = datadumpFolder;
+        const fromInput = document.getElementById(
+          "whattheduck-clipboard-from"
+        );
+        if (fromInput) {
+          fromInput.value = clipboardPathFrom;
+          fromInput.placeholder = serverPathPlaceholder(serverRootPath);
+        }
+        const toInput = document.getElementById(
+          "whattheduck-clipboard-to"
+        );
+        if (toInput) {
+          toInput.value = clipboardPathTo;
+        }
         applyDatadumpStatus(
           data.datadumpActive ?? false,
           data.datadumpCount ?? 0
@@ -1455,19 +1542,25 @@
     const nextDatadumpEnabled = readChecked("whattheduck-datadump-enabled");
     const nextDatadumpFolder = readValue("whattheduck-datadump-folder").trim();
     const nextArchMappings = readArchMappings(document);
+    const nextClipboardFrom = readValue("whattheduck-clipboard-from").trim();
+    const nextClipboardTo = readValue("whattheduck-clipboard-to").trim();
     genericRequest(
       "WhatTheDuckSaveSettings",
       {
         keyboardNavigationEnabled: keyboardNav,
         datadumpEnabled: nextDatadumpEnabled,
         datadumpFolder: nextDatadumpFolder,
-        archFolderMappings: JSON.stringify(nextArchMappings)
+        archFolderMappings: JSON.stringify(nextArchMappings),
+        clipboardPathFrom: nextClipboardFrom,
+        clipboardPathTo: nextClipboardTo
       },
       (data) => {
         if (data.success) {
           keyboardNavigationEnabled = keyboardNav;
           datadumpEnabled = nextDatadumpEnabled;
           datadumpFolder = nextDatadumpFolder;
+          clipboardPathFrom = nextClipboardFrom;
+          clipboardPathTo = nextClipboardTo;
           applyArchMappings(nextArchMappings);
           applyDatadumpStatus(
             data.datadumpActive ?? false,
@@ -1532,7 +1625,10 @@
       keyboardNavigationEnabled,
       datadumpEnabled,
       datadumpFolder,
-      archFolderMappings
+      archFolderMappings,
+      clipboardPathFrom,
+      clipboardPathTo,
+      serverRootPath
     });
     loadSettings();
     initArchPickers(document);

@@ -8,6 +8,8 @@ import {
     renderMappingSelect,
     renderModifiedPlaceholders,
     renderSettingsForm,
+    SERVER_PATH_PLACEHOLDER_FALLBACK,
+    serverPathPlaceholder,
 } from "./settings";
 
 const ROW_OPTIONS: ArchRowOptions = {
@@ -79,6 +81,21 @@ describe("settings pure renderers", () => {
         });
     });
 
+    describe("serverPathPlaceholder", () => {
+        it("uses the server's base path when it is known", () => {
+            expect(serverPathPlaceholder("  /workspace  ")).toBe("/workspace");
+        });
+
+        it("falls back when the path is missing or blank", () => {
+            expect(serverPathPlaceholder(undefined)).toBe(
+                SERVER_PATH_PLACEHOLDER_FALLBACK,
+            );
+            expect(serverPathPlaceholder("   ")).toBe(
+                SERVER_PATH_PLACEHOLDER_FALLBACK,
+            );
+        });
+    });
+
     describe("renderSettingsForm", () => {
         it("checks the checkboxes that are enabled in state", () => {
             const html = renderSettingsForm({
@@ -86,6 +103,8 @@ describe("settings pure renderers", () => {
                 datadumpEnabled: false,
                 datadumpFolder: "/data/wildcards",
                 archFolderMappings: [],
+                clipboardPathFrom: "",
+                clipboardPathTo: "",
             });
 
             const wrapper = document.createElement("div");
@@ -113,6 +132,8 @@ describe("settings pure renderers", () => {
                 datadumpEnabled: true,
                 datadumpFolder: "",
                 archFolderMappings: [],
+                clipboardPathFrom: "",
+                clipboardPathTo: "",
             });
 
             const keyboardNav = wrapper.querySelector<HTMLInputElement>(
@@ -137,6 +158,8 @@ describe("settings pure renderers", () => {
                 datadumpEnabled: false,
                 datadumpFolder: "",
                 archFolderMappings: [],
+                clipboardPathFrom: "",
+                clipboardPathTo: "",
             });
 
             expect(wrapper.querySelector("#whattheduck-form")).not.toBeNull();
@@ -157,6 +180,66 @@ describe("settings pure renderers", () => {
             ).not.toBeNull();
         });
 
+        it("shows the server's own base path as the server-prefix placeholder", () => {
+            const wrapper = document.createElement("div");
+            wrapper.innerHTML = renderSettingsForm({
+                keyboardNavigationEnabled: false,
+                datadumpEnabled: false,
+                datadumpFolder: "",
+                archFolderMappings: [],
+                clipboardPathFrom: "",
+                clipboardPathTo: "",
+                serverRootPath: "/opt/SwarmUI",
+            });
+
+            expect(
+                wrapper.querySelector<HTMLInputElement>(
+                    "#whattheduck-clipboard-from",
+                )?.placeholder,
+            ).toBe("/opt/SwarmUI");
+        });
+
+        it("falls back to a generic placeholder before the server reports its path", () => {
+            const wrapper = document.createElement("div");
+            wrapper.innerHTML = renderSettingsForm({
+                keyboardNavigationEnabled: false,
+                datadumpEnabled: false,
+                datadumpFolder: "",
+                archFolderMappings: [],
+                clipboardPathFrom: "",
+                clipboardPathTo: "",
+            });
+
+            expect(
+                wrapper.querySelector<HTMLInputElement>(
+                    "#whattheduck-clipboard-from",
+                )?.placeholder,
+            ).toBe(SERVER_PATH_PLACEHOLDER_FALLBACK);
+        });
+
+        it("seeds the clipboard path-mapping inputs from state", () => {
+            const wrapper = document.createElement("div");
+            wrapper.innerHTML = renderSettingsForm({
+                keyboardNavigationEnabled: false,
+                datadumpEnabled: false,
+                datadumpFolder: "",
+                archFolderMappings: [],
+                clipboardPathFrom: "/workspace",
+                clipboardPathTo: "~/swarm-data",
+            });
+
+            expect(
+                wrapper.querySelector<HTMLInputElement>(
+                    "#whattheduck-clipboard-from",
+                )?.value,
+            ).toBe("/workspace");
+            expect(
+                wrapper.querySelector<HTMLInputElement>(
+                    "#whattheduck-clipboard-to",
+                )?.value,
+            ).toBe("~/swarm-data");
+        });
+
         it("seeds the mapping rows from state", () => {
             const wrapper = document.createElement("div");
             wrapper.innerHTML = renderSettingsForm({
@@ -170,6 +253,8 @@ describe("settings pure renderers", () => {
                         loraFolder: "anima/loras",
                     },
                 ],
+                clipboardPathFrom: "",
+                clipboardPathTo: "",
             });
 
             const row = wrapper.querySelector("[data-wtd-arch-row]");

@@ -9,8 +9,8 @@ import {
 
 /**
  * comfyWorkflowSave exercises SwarmUI globals (getGenInput, genericRequest,
- * comfyNoticeMessage, doNoticePopover, showError) and latches an internal
- * `started` flag in init(). Each test re-imports the module fresh via
+ * copyText, comfyFrame, showError) and latches an internal `started` flag plus a
+ * checkmark timer in init(). Each test re-imports the module fresh via
  * jest.resetModules() + dynamic import so the latch/observer state never leaks
  * between tests (the documented pattern for the attached-flag modules).
  */
@@ -69,7 +69,6 @@ describe("comfyWorkflowSave", () => {
         };
         g.getGenInput = () => ({ prompt: "a duck", model: "sdxl" });
         g.showError = jest.fn();
-        g.comfyNoticeMessage = jest.fn();
         g.copyText = jest.fn();
         mod = await import("./comfyWorkflowSave");
     });
@@ -79,8 +78,6 @@ describe("comfyWorkflowSave", () => {
             "genericRequest",
             "getGenInput",
             "showError",
-            "comfyNoticeMessage",
-            "doNoticePopover",
             "comfyFrame",
             "copyText",
         ]) {
@@ -136,7 +133,7 @@ describe("comfyWorkflowSave", () => {
             });
         });
 
-        it("reports the saved location and copies both paths on success", () => {
+        it("copies both paths on success", () => {
             mod.onSaveClick();
             requests[0][2]({ workflow: "{}" });
             requests[1][2]({
@@ -147,9 +144,6 @@ describe("comfyWorkflowSave", () => {
                 workflowPath:
                     "/data/WhatTheDuck/ComfyWorkflows/2026-08-07_10-00-00_workflow.json",
             });
-            expect(g.comfyNoticeMessage).toHaveBeenLastCalledWith(
-                "Saved to /data/WhatTheDuck/ComfyWorkflows (paths copied to clipboard)",
-            );
             expect(g.copyText).toHaveBeenCalledWith(
                 "Payload: /data/WhatTheDuck/ComfyWorkflows/2026-08-07_10-00-00_payload.json, " +
                     "Generated Workflow: /data/WhatTheDuck/ComfyWorkflows/2026-08-07_10-00-00_workflow.json",
@@ -233,6 +227,73 @@ describe("comfyWorkflowSave", () => {
             ).toBe(
                 "Payload: /srv/a_payload.json, Generated Workflow: /srv/a_workflow.json",
             );
+        });
+
+        it("prefers the path-mapped form when the server sends one", () => {
+            expect(
+                mod.buildClipboardLine({
+                    payloadPath: "/workspace/Data/a_payload.json",
+                    workflowPath: "/workspace/Data/a_workflow.json",
+                    payloadLocalPath: "~/swarm-data/Data/a_payload.json",
+                    workflowLocalPath: "~/swarm-data/Data/a_workflow.json",
+                }),
+            ).toBe(
+                "Payload: ~/swarm-data/Data/a_payload.json, " +
+                    "Generated Workflow: ~/swarm-data/Data/a_workflow.json",
+            );
+        });
+    });
+
+    describe("setButtonMark", () => {
+        it("shows a busy mark on click and a checkmark on success", () => {
+            jest.useFakeTimers();
+            buildPanel();
+            mod.comfyWorkflowSave.init();
+            const btn = document.getElementById(BUTTON_ID);
+
+            btn?.click();
+            expect(
+                btn?.querySelector(".wtd-comfy-save-mark")?.textContent,
+            ).toBe("…");
+
+            requests[0][2]({ workflow: "{}" });
+            requests[1][2]({
+                success: true,
+                payloadPath: "/a",
+                workflowPath: "/b",
+            });
+            expect(
+                btn?.querySelector(".wtd-comfy-save-mark")?.textContent,
+            ).toBe("✓");
+
+            jest.advanceTimersByTime(2500);
+            expect(btn?.querySelector(".wtd-comfy-save-mark")).toBeNull();
+            jest.useRealTimers();
+        });
+
+        it("clears the mark when the save fails", () => {
+            buildPanel();
+            mod.comfyWorkflowSave.init();
+            const btn = document.getElementById(BUTTON_ID);
+            btn?.click();
+            requests[0][2]({ workflow: "{}" });
+            requests[1][2]({ success: false, error: "Disk full." });
+            expect(btn?.querySelector(".wtd-comfy-save-mark")).toBeNull();
+        });
+
+        it("never writes to the comfy panel's notice slot", () => {
+            g.comfyNoticeMessage = jest.fn();
+            buildPanel();
+            mod.comfyWorkflowSave.init();
+            document.getElementById(BUTTON_ID)?.click();
+            requests[0][2]({ workflow: "{}" });
+            requests[1][2]({
+                success: true,
+                payloadPath: "/a",
+                workflowPath: "/b",
+            });
+            expect(g.comfyNoticeMessage).not.toHaveBeenCalled();
+            delete g.comfyNoticeMessage;
         });
     });
 

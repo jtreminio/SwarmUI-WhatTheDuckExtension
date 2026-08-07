@@ -54,9 +54,6 @@ declare function getGenInput(
     inputPreOverrides?: Record<string, unknown>,
 ): Record<string, unknown>;
 
-/** Transient status text in the Comfy Workflow tab's button-panel notice slot. */
-declare function comfyNoticeMessage(message: string): void;
-
 /** The iframe hosting the embedded ComfyUI editor. Throws if the tab is absent. */
 declare function comfyFrame(): HTMLIFrameElement | null;
 

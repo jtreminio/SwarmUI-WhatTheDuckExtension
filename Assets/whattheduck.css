@@ -325,3 +325,10 @@
 #wtd_comfy_save_workflow_button {
     margin-left: 0.4rem;
 }
+
+/* Transient "…" / "✓" marker on the Comfy tab's save button. */
+.wtd-comfy-save-mark {
+    margin-left: 0.3rem;
+    font-weight: bold;
+    color: var(--success-text, #4caf50);
+}

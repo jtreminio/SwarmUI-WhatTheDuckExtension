@@ -95,6 +95,31 @@ public static class ComfyWorkflowSaveApi
         return parsed.ToString(Formatting.Indented);
     }
 
+    /// <summary>Rewrites a server-side path into the equivalent path on the machine the user
+    /// edits files on, eg "/workspace/Data/x.json" to "~/swarm-data/Data/x.json" when SwarmUI
+    /// runs in a container. Returns <paramref name="path"/> unchanged when no prefix is configured
+    /// or the path sits outside it.</summary>
+    public static string MapToLocalPath(string path, string from, string to)
+    {
+        if (string.IsNullOrEmpty(path) || string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+        {
+            return path;
+        }
+        from = from.Trim().TrimEnd('/', '\\');
+        to = to.Trim().TrimEnd('/', '\\');
+        if (from == "" || !path.StartsWith(from, StringComparison.Ordinal))
+        {
+            return path;
+        }
+        string rest = path[from.Length..];
+        // Only a whole path segment counts: "/workspace" must not match "/workspaces/x".
+        if (rest != "" && rest[0] != '/' && rest[0] != '\\')
+        {
+            return path;
+        }
+        return to + rest;
+    }
+
     /// <summary>Timestamp-based file name stem that doesn't collide with an existing dump
     /// (two saves within the same second get a "-2", "-3", ... suffix).</summary>
     private static string PickUniqueStem(string folder, DateTimeOffset now)
@@ -126,6 +151,8 @@ public static class ComfyWorkflowSaveApi
             await File.WriteAllTextAsync(payloadPath, CleanForDump(payload));
             await File.WriteAllTextAsync(workflowPath, CleanForDump(workflow));
             Logs.Info($"WhatTheDuck: User {session.User.UserID} saved a Comfy workflow dump to '{folder}' as '{stem}_*.json'.");
+            string from = WhatTheDuckExtension.ClipboardPathFrom;
+            string to = WhatTheDuckExtension.ClipboardPathTo;
             return new JObject
             {
                 ["success"] = true,
@@ -133,7 +160,11 @@ public static class ComfyWorkflowSaveApi
                 ["payloadFile"] = Path.GetFileName(payloadPath),
                 ["workflowFile"] = Path.GetFileName(workflowPath),
                 ["payloadPath"] = payloadPath,
-                ["workflowPath"] = workflowPath
+                ["workflowPath"] = workflowPath,
+                // Where those files live from the user's point of view - what the frontend copies
+                // to the clipboard. Same as the real paths unless a path mapping is configured.
+                ["payloadLocalPath"] = MapToLocalPath(payloadPath, from, to),
+                ["workflowLocalPath"] = MapToLocalPath(workflowPath, from, to)
             };
         }
         catch (Exception ex)

@@ -13,6 +13,14 @@ public class WhatTheDuckExtension : Extension
 
     public static bool KeyboardNavigationEnabled { get; set; } = true;
 
+    /// <summary>Server-side path prefix rewritten out of the Comfy workflow dump paths that get
+    /// copied to the clipboard, eg "/workspace" when SwarmUI runs in a container.</summary>
+    public static string ClipboardPathFrom { get; set; } = "";
+
+    /// <summary>What <see cref="ClipboardPathFrom"/> is replaced with, ie where that directory
+    /// lives on the machine the user actually edits files on.</summary>
+    public static string ClipboardPathTo { get; set; } = "";
+
     /// <summary>Architecture-to-folder mappings, as an array of
     /// { architectures, checkpointFolder, loraFolder } objects, where architectures
     /// holds SwarmUI compat-class IDs (e.g. "flux-1", "stable-diffusion-xl-v1").</summary>
@@ -72,6 +80,14 @@ public class WhatTheDuckExtension : Extension
                 {
                     DatadumpManager.DatadumpFolder = datadumpFolderToken.Value<string>();
                 }
+                if (settings.TryGetValue("clipboardPathFrom", out JToken clipboardFromToken))
+                {
+                    ClipboardPathFrom = clipboardFromToken.Value<string>() ?? "";
+                }
+                if (settings.TryGetValue("clipboardPathTo", out JToken clipboardToToken))
+                {
+                    ClipboardPathTo = clipboardToToken.Value<string>() ?? "";
+                }
                 if (settings.TryGetValue("archFolderMappings", out JToken archMappingsToken) && archMappingsToken is JArray archMappings)
                 {
                     ArchFolderMappings = SanitizeArchMappings(archMappings);
@@ -98,6 +114,8 @@ public class WhatTheDuckExtension : Extension
                 ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
                 ["datadumpEnabled"] = DatadumpManager.Enabled,
                 ["datadumpFolder"] = DatadumpManager.DatadumpFolder,
+                ["clipboardPathFrom"] = ClipboardPathFrom,
+                ["clipboardPathTo"] = ClipboardPathTo,
                 ["archFolderMappings"] = ArchFolderMappings
             };
             File.WriteAllText(SettingsFilePath, settings.ToString());   
@@ -167,18 +185,25 @@ public class WhatTheDuckExtension : Extension
             ["datadumpCount"] = DatadumpManager.Count,
             ["datadumpActive"] = DatadumpManager.IsActive,
             ["modifiedPlaceholders"] = new JArray(DatadumpManager.GetModifiedPlaceholders()),
+            ["clipboardPathFrom"] = ClipboardPathFrom,
+            ["clipboardPathTo"] = ClipboardPathTo,
+            // Swarm's own base path, offered as the Server Path Prefix placeholder since dumps
+            // are written under it.
+            ["serverRootPath"] = Environment.CurrentDirectory,
             ["archFolderMappings"] = ArchFolderMappings,
             ["architectures"] = ArchDetectionApi.ListArchitectures()
         };
     }
 
-    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool datadumpEnabled = false, string datadumpFolder = "", string archFolderMappings = null)
+    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool datadumpEnabled = false, string datadumpFolder = "", string archFolderMappings = null, string clipboardPathFrom = "", string clipboardPathTo = "")
     {
         try
         {
             KeyboardNavigationEnabled = keyboardNavigationEnabled;
             DatadumpManager.Enabled = datadumpEnabled;
             DatadumpManager.DatadumpFolder = datadumpFolder ?? "";
+            ClipboardPathFrom = clipboardPathFrom?.Trim() ?? "";
+            ClipboardPathTo = clipboardPathTo?.Trim() ?? "";
             // Null means the caller didn't send the field; don't wipe saved mappings.
             if (archFolderMappings is not null)
             {

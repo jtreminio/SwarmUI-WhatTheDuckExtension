@@ -55,11 +55,19 @@ It does everything the import button does — the current Generate tab parameter
 
 `<DataDir>` is SwarmUI's data directory (`Data/` by default). Both files are pretty-printed JSON, and the timestamp gets a `-2`, `-3`, ... suffix if you save more than once within the same second. If the graph can't be updated (editor not loaded yet), the files are still saved.
 
-The absolute path of both files is copied to your clipboard on success, as:
+On success the button shows a brief ✓ (the panel's shared notice line is left alone), and the path of both files is copied to your clipboard as:
 
 ```
 Payload: /path/to/<timestamp>_payload.json, Generated Workflow: /path/to/<timestamp>_workflow.json
 ```
+
+#### Path Mapping (containers / remote servers)
+
+If SwarmUI sees a different filesystem than your editor does, set **Server Path Prefix** and **Local Path Prefix** in the WhatTheDuck settings panel (🧩 Comfy Workflow Dump). The copied text is rewritten through that pair, while the files are still saved to the real server path. The Server Path Prefix box shows SwarmUI's own base path as its placeholder, so you can see what the server side actually looks like.
+
+With `/workspace` → `~/swarm-data`, a dump saved at `/workspace/Data/WhatTheDuck/ComfyWorkflows/x_payload.json` is copied as `~/swarm-data/Data/WhatTheDuck/ComfyWorkflows/x_payload.json`.
+
+Only whole path segments match (`/workspace` will not match `/workspaces/...`), and paths outside the prefix — or an empty prefix pair — are copied unchanged.
 
 Embedded base64 blobs — init images, masks, anything else Swarm inlines — are cropped out of both files before writing, so a dump of an img2img generation stays a few KB instead of tens of megabytes. Data URIs keep their header and the first 24 characters, then say how much was dropped:
 

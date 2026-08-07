@@ -18,6 +18,9 @@ interface WhatTheDuckSettingsResponse {
     datadumpActive?: boolean;
     datadumpCount?: number;
     modifiedPlaceholders?: string[];
+    clipboardPathFrom?: string;
+    clipboardPathTo?: string;
+    serverRootPath?: string;
     archFolderMappings?: unknown;
     architectures?: string[];
     message?: string;
@@ -29,9 +32,23 @@ export interface SettingsFormState {
     datadumpEnabled: boolean;
     datadumpFolder: string;
     archFolderMappings: ArchFolderMapping[];
+    clipboardPathFrom: string;
+    clipboardPathTo: string;
+    /** Swarm's own base path, if the server has reported it yet. */
+    serverRootPath?: string;
 }
 
 const STATUS_TIMEOUT_MS = 5000;
+
+/** Stand-in shown for the Server Path Prefix before the server reports its base path. */
+export const SERVER_PATH_PLACEHOLDER_FALLBACK = "/path/to/SwarmUI";
+
+/**
+ * What to show in the empty Server Path Prefix box: Swarm's own base path, since
+ * the dumps live under it and it's the prefix a container maps away.
+ */
+export const serverPathPlaceholder = (serverRootPath?: string): string =>
+    serverRootPath?.trim() || SERVER_PATH_PLACEHOLDER_FALLBACK;
 
 // --- Pure helpers (no I/O; directly unit-testable) ---------------------------
 
@@ -294,6 +311,44 @@ export const renderSettingsForm = (state: SettingsFormState): string => `
                         </div>
                     </div>
 
+                    <div class="input-group input-group-open">
+                        <span class="input-group-header input-group-noshrink">
+                            <span class="header-label-wrap">
+                                <span class="header-label">🧩 Comfy Workflow Dump</span>
+                            </span>
+                        </span>
+                        <div class="input-group-content">
+                            <div class="auto-input auto-input-flex">
+                                <label for="whattheduck-clipboard-from">
+                                    <span class="auto-input-name">
+                                        Server Path Prefix
+                                        <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_clipboard_paths', arguments[0])">?</span>
+                                    </span>
+                                </label>
+                                <input class="auto-text" type="text" id="whattheduck-clipboard-from" value="${escapeAttr(state.clipboardPathFrom)}" placeholder="${escapeAttr(serverPathPlaceholder(state.serverRootPath))}" autocomplete="off">
+                            </div>
+                            <div class="auto-input auto-input-flex">
+                                <label for="whattheduck-clipboard-to">
+                                    <span class="auto-input-name">
+                                        Local Path Prefix
+                                        <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_clipboard_paths', arguments[0])">?</span>
+                                    </span>
+                                </label>
+                                <input class="auto-text" type="text" id="whattheduck-clipboard-to" value="${escapeAttr(state.clipboardPathTo)}" placeholder="~/swarm-data" autocomplete="off">
+                            </div>
+                            <div class="sui-popover sui-info-popover" id="popover_whattheduck_clipboard_paths">
+                                <b>Server / Local Path Prefix</b> (string pair):<br>
+                                <span class="slight-left-margin-block">
+                                    Rewrites the file paths that the Comfy Workflow tab's "Import &amp; Save To Server" button copies to your clipboard, for when SwarmUI sees a different filesystem than you do (a container, a network share, a remote box).
+                                    <br>• <b>Server Path Prefix</b>: the directory as SwarmUI sees it, e.g. <code>/workspace</code> - the box's placeholder shows SwarmUI's own base path.
+                                    <br>• <b>Local Path Prefix</b>: the same directory as your editor sees it, e.g. <code>~/swarm-data</code>.
+                                    <br>Files are still <b>saved</b> to the real server path; only the copied text is rewritten. A path outside the prefix, or an empty pair, is copied unchanged.
+                                </span>
+                                <br>Example: <code>/workspace/Data/WhatTheDuck/...</code> is copied as <code>~/swarm-data/Data/WhatTheDuck/...</code>
+                            </div>
+                        </div>
+                    </div>
+
                     <div id="whattheduck-status" class="whattheduck-status"></div>
 
                     <div class="whattheduck-actions">
@@ -309,6 +364,9 @@ let keyboardNavigationEnabled = true;
 let datadumpEnabled = false;
 let datadumpFolder = "";
 let archFolderMappings: ArchFolderMapping[] = [];
+let clipboardPathFrom = "";
+let clipboardPathTo = "";
+let serverRootPath = "";
 let knownArchitectures: string[] = [];
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -389,6 +447,9 @@ const loadSettings = (): void => {
             keyboardNavigationEnabled = data.keyboardNavigationEnabled ?? false;
             datadumpEnabled = data.datadumpEnabled ?? false;
             datadumpFolder = data.datadumpFolder || "";
+            clipboardPathFrom = data.clipboardPathFrom || "";
+            clipboardPathTo = data.clipboardPathTo || "";
+            serverRootPath = data.serverRootPath || "";
 
             (
                 document.getElementById(
@@ -405,6 +466,19 @@ const loadSettings = (): void => {
                     "whattheduck-datadump-folder",
                 ) as HTMLInputElement
             ).value = datadumpFolder;
+            const fromInput = document.getElementById(
+                "whattheduck-clipboard-from",
+            ) as HTMLInputElement | null;
+            if (fromInput) {
+                fromInput.value = clipboardPathFrom;
+                fromInput.placeholder = serverPathPlaceholder(serverRootPath);
+            }
+            const toInput = document.getElementById(
+                "whattheduck-clipboard-to",
+            ) as HTMLInputElement | null;
+            if (toInput) {
+                toInput.value = clipboardPathTo;
+            }
 
             applyDatadumpStatus(
                 data.datadumpActive ?? false,
@@ -428,6 +502,8 @@ const saveSettings = (): void => {
     const nextDatadumpEnabled = readChecked("whattheduck-datadump-enabled");
     const nextDatadumpFolder = readValue("whattheduck-datadump-folder").trim();
     const nextArchMappings = readArchMappings(document);
+    const nextClipboardFrom = readValue("whattheduck-clipboard-from").trim();
+    const nextClipboardTo = readValue("whattheduck-clipboard-to").trim();
 
     genericRequest<WhatTheDuckSettingsResponse>(
         "WhatTheDuckSaveSettings",
@@ -436,12 +512,16 @@ const saveSettings = (): void => {
             datadumpEnabled: nextDatadumpEnabled,
             datadumpFolder: nextDatadumpFolder,
             archFolderMappings: JSON.stringify(nextArchMappings),
+            clipboardPathFrom: nextClipboardFrom,
+            clipboardPathTo: nextClipboardTo,
         },
         (data) => {
             if (data.success) {
                 keyboardNavigationEnabled = keyboardNav;
                 datadumpEnabled = nextDatadumpEnabled;
                 datadumpFolder = nextDatadumpFolder;
+                clipboardPathFrom = nextClipboardFrom;
+                clipboardPathTo = nextClipboardTo;
                 applyArchMappings(nextArchMappings);
 
                 applyDatadumpStatus(
@@ -513,6 +593,9 @@ const init = (): void => {
         datadumpEnabled,
         datadumpFolder,
         archFolderMappings,
+        clipboardPathFrom,
+        clipboardPathTo,
+        serverRootPath,
     });
 
     loadSettings();

@@ -14,7 +14,9 @@
  * server (with embedded base64 blobs cropped out server-side). One click, so the
  * core import button doesn't have to be clicked too.
  *
- * The absolute path of both saved files is copied to the clipboard on success.
+ * The path of both saved files is copied to the clipboard on success (rewritten
+ * through the settings panel's path mapping, if one is set), and the button
+ * shows a brief ✓ - the comfy panel's shared notice slot is left alone.
  */
 
 const BUTTON_ID = "wtd_comfy_save_workflow_button";
@@ -22,8 +24,13 @@ const BUTTON_LABEL = "Import & Save To Server";
 const BUTTON_TITLE =
     "Import the generate tab's workflow into the editor, and save it plus the " +
     "payload it was built from as JSON files on the machine running SwarmUI.";
+const MARK_CLASS = "wtd-comfy-save-mark";
+const BUSY_MARK = "…";
+const DONE_MARK = "✓";
+const DONE_TIMEOUT_MS = 2500;
 
 let started = false;
+let markTimer: ReturnType<typeof setTimeout> | null = null;
 
 interface GeneratedWorkflowResponse {
     workflow?: string;
@@ -37,24 +44,59 @@ interface SaveWorkflowResponse {
     workflowFile?: string;
     payloadPath?: string;
     workflowPath?: string;
+    payloadLocalPath?: string;
+    workflowLocalPath?: string;
     error?: string;
 }
 
-/** The line copied to the clipboard after a successful save. */
-export const buildClipboardLine = (res: SaveWorkflowResponse): string =>
-    `Payload: ${res.payloadPath ?? ""}, Generated Workflow: ${res.workflowPath ?? ""}`;
+/**
+ * The line copied to the clipboard after a successful save. Prefers the
+ * server's path-mapped form (set in the WhatTheDuck settings panel), so a
+ * containerized SwarmUI hands back paths that resolve on the user's own box.
+ */
+export const buildClipboardLine = (res: SaveWorkflowResponse): string => {
+    const payload = res.payloadLocalPath || res.payloadPath || "";
+    const workflow = res.workflowLocalPath || res.workflowPath || "";
+    return `Payload: ${payload}, Generated Workflow: ${workflow}`;
+};
+
+// --- Button state marker ----------------------------------------------------
 
 /**
- * Status text in the comfy button panel's notice slot when available (the tab we
- * live in owns it), falling back to the generic popover elsewhere.
+ * Show a small marker on the button itself (rather than writing into the comfy
+ * panel's shared notice slot): "…" while the save is in flight, "✓" briefly
+ * once it lands. Passing an empty mark clears it.
  */
-const notice = (message: string): void => {
-    if (typeof comfyNoticeMessage === "function") {
-        comfyNoticeMessage(message);
+export const setButtonMark = (
+    mark: string,
+    timeoutMs = 0,
+    rootDoc: Document = document,
+): void => {
+    const btn = rootDoc.getElementById(BUTTON_ID);
+    if (!btn) {
         return;
     }
-    if (typeof doNoticePopover === "function") {
-        doNoticePopover(message, "notice-pop-green");
+    if (markTimer !== null) {
+        clearTimeout(markTimer);
+        markTimer = null;
+    }
+    let span = btn.querySelector<HTMLElement>(`.${MARK_CLASS}`);
+    if (!mark) {
+        span?.remove();
+        return;
+    }
+    if (!span) {
+        span = rootDoc.createElement("span");
+        span.className = MARK_CLASS;
+        btn.appendChild(span);
+    }
+    span.textContent = mark;
+    if (timeoutMs > 0) {
+        const shown = span;
+        markTimer = setTimeout(() => {
+            shown.remove();
+            markTimer = null;
+        }, timeoutMs);
     }
 };
 
@@ -94,12 +136,13 @@ export const onSaveClick = (): void => {
         return;
     }
     const payload = getGenInput();
-    notice("Importing and saving workflow...");
+    setButtonMark(BUSY_MARK);
     genericRequest<GeneratedWorkflowResponse>(
         "ComfyGetGeneratedWorkflow",
         payload,
         (data) => {
             if (!data?.workflow) {
+                setButtonMark("");
                 showError(data?.error || "No workflow found.");
                 return;
             }
@@ -118,15 +161,14 @@ export const onSaveClick = (): void => {
                 },
                 (res) => {
                     if (!res?.success) {
+                        setButtonMark("");
                         showError(res?.error || "Failed to save workflow.");
                         return;
                     }
                     if (typeof copyText === "function") {
                         copyText(buildClipboardLine(res));
                     }
-                    notice(
-                        `Saved to ${res.folder} (paths copied to clipboard)`,
-                    );
+                    setButtonMark(DONE_MARK, DONE_TIMEOUT_MS);
                 },
             );
         },
