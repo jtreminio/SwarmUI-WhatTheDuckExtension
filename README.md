@@ -44,6 +44,33 @@ The key difference from "Reuse Parameters": that button loads the *original* pro
 
 The original prompt is still preserved: it is recorded as `original_prompt` in the new image's metadata, exactly as the source image had it.
 
+### Import & Save Comfy Workflow To Server
+
+Adds an **Import & Save To Server** button to the Comfy Workflow tab's button panel, right next to "Import From Generate Tab".
+
+It does everything the import button does — the current Generate tab parameters are sent to `API/ComfyGetGeneratedWorkflow` and the resulting workflow is loaded into the Comfy editor — and additionally writes both halves of that exchange to disk on the machine running SwarmUI:
+
+- `<DataDir>/WhatTheDuck/ComfyWorkflows/<timestamp>_payload.json` — the payload that was sent to `ComfyGetGeneratedWorkflow`
+- `<DataDir>/WhatTheDuck/ComfyWorkflows/<timestamp>_workflow.json` — the ComfyUI workflow it generated
+
+`<DataDir>` is SwarmUI's data directory (`Data/` by default). Both files are pretty-printed JSON, and the timestamp gets a `-2`, `-3`, ... suffix if you save more than once within the same second. If the graph can't be updated (editor not loaded yet), the files are still saved.
+
+The absolute path of both files is copied to your clipboard on success, as:
+
+```
+Payload: /path/to/<timestamp>_payload.json, Generated Workflow: /path/to/<timestamp>_workflow.json
+```
+
+Embedded base64 blobs — init images, masks, anything else Swarm inlines — are cropped out of both files before writing, so a dump of an img2img generation stays a few KB instead of tens of megabytes. Data URIs keep their header and the first 24 characters, then say how much was dropped:
+
+```
+"initimage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...[truncated, 402 base64 chars]"
+```
+
+Bare base64 (no `data:` header) is cropped the same way. The cropped values are deliberately no longer decodable — these dumps are for reading and diffing, not for replaying.
+
+Handy for diffing what Swarm actually builds for a given set of parameters, or for filing bug reports with the exact workflow attached.
+
 ### Datadump - Large Wildcard File Support
 
 Handles very large wildcard files (gigabytes in size) without impacting SwarmUI's performance. When you click "Refresh Wildcards" in SwarmUI, it normally loads all wildcard files into memory - this can cause issues with extremely large files.

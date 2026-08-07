@@ -320,3 +320,8 @@
 .whattheduck-arch-actions {
     margin-top: 0.5rem;
 }
+
+/* Comfy Workflow tab: "Save To Server" button beside "Import From Generate Tab". */
+#wtd_comfy_save_workflow_button {
+    margin-left: 0.4rem;
+}

@@ -188,13 +188,122 @@
     init
   };
 
+  // frontend/comfyWorkflowSave.ts
+  var BUTTON_ID = "wtd_comfy_save_workflow_button";
+  var BUTTON_LABEL = "Import & Save To Server";
+  var BUTTON_TITLE = "Import the generate tab's workflow into the editor, and save it plus the payload it was built from as JSON files on the machine running SwarmUI.";
+  var started2 = false;
+  var buildClipboardLine = (res) => `Payload: ${res.payloadPath ?? ""}, Generated Workflow: ${res.workflowPath ?? ""}`;
+  var notice = (message) => {
+    if (typeof comfyNoticeMessage === "function") {
+      comfyNoticeMessage(message);
+      return;
+    }
+    if (typeof doNoticePopover === "function") {
+      doNoticePopover(message, "notice-pop-green");
+    }
+  };
+  var loadWorkflowIntoEditor = (workflow) => {
+    if (typeof comfyFrame !== "function") {
+      return false;
+    }
+    const win = comfyFrame()?.contentWindow;
+    const app = win?.app;
+    const liteGraph = win?.LiteGraph;
+    if (!app?.loadApiJson || !liteGraph?.cloneObject) {
+      return false;
+    }
+    app.loadApiJson(liteGraph.cloneObject(JSON.parse(workflow)));
+    return true;
+  };
+  var onSaveClick = () => {
+    if (typeof getGenInput !== "function") {
+      showError("Generate tab parameters are not available.");
+      return;
+    }
+    const payload = getGenInput();
+    notice("Importing and saving workflow...");
+    genericRequest(
+      "ComfyGetGeneratedWorkflow",
+      payload,
+      (data) => {
+        if (!data?.workflow) {
+          showError(data?.error || "No workflow found.");
+          return;
+        }
+        try {
+          loadWorkflowIntoEditor(data.workflow);
+        } catch (err) {
+          showError(`Failed to load workflow into the editor: ${err}`);
+        }
+        genericRequest(
+          "WhatTheDuckSaveComfyWorkflow",
+          {
+            payload: JSON.stringify(payload),
+            workflow: data.workflow
+          },
+          (res) => {
+            if (!res?.success) {
+              showError(res?.error || "Failed to save workflow.");
+              return;
+            }
+            if (typeof copyText === "function") {
+              copyText(buildClipboardLine(res));
+            }
+            notice(
+              `Saved to ${res.folder} (paths copied to clipboard)`
+            );
+          }
+        );
+      }
+    );
+  };
+  function injectSaveButton(rootDoc) {
+    if (rootDoc.getElementById(BUTTON_ID)) {
+      return true;
+    }
+    const importBtn = rootDoc.querySelector(
+      '#comfy_workflow_buttons button[onclick*="comfyImportWorkflow"]'
+    );
+    if (!importBtn) {
+      return false;
+    }
+    const btn = rootDoc.createElement("button");
+    btn.type = "button";
+    btn.id = BUTTON_ID;
+    btn.className = "basic-button comfy-small-button comfy-left-button";
+    btn.title = BUTTON_TITLE;
+    btn.textContent = BUTTON_LABEL;
+    btn.addEventListener("click", onSaveClick);
+    importBtn.insertAdjacentElement("afterend", btn);
+    return true;
+  }
+  var init2 = () => {
+    if (started2) {
+      return;
+    }
+    started2 = true;
+    if (injectSaveButton(document)) {
+      return;
+    }
+    const observer = new MutationObserver(() => {
+      if (injectSaveButton(document)) {
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  };
+  var comfyWorkflowSave = {
+    init: init2
+  };
+
   // frontend/promptEdit.ts
   var MODAL_ID = "wtd_prompt_edit_modal";
   var TEXTAREA_ID = "wtd_prompt_edit_textarea";
   var SAVE_ID = "wtd_prompt_edit_save";
   var EDIT_BTN_CLASS = "wtd-prompt-edit-button";
   var EDIT_BTN_MARK = "data-wtd-edit-button";
-  var started2 = false;
+  var started3 = false;
   var getTextarea = () => document.getElementById(TEXTAREA_ID);
   var showModal = () => {
     if (typeof $ === "function") {
@@ -340,23 +449,23 @@
     document.getElementById(SAVE_ID)?.addEventListener("click", onSave);
     modal.querySelector('[data-bs-dismiss="modal"]')?.addEventListener("click", () => hideModal());
   }
-  var init2 = () => {
-    if (started2) {
+  var init3 = () => {
+    if (started3) {
       return;
     }
-    started2 = true;
+    started3 = true;
     buildModal();
     const observer = new MutationObserver(() => injectEditButtons(document));
     observer.observe(document.body, { childList: true, subtree: true });
     injectEditButtons(document);
   };
   var promptEdit = {
-    init: init2
+    init: init3
   };
 
   // frontend/redo.ts
   var BUTTON_NAME = "Redo";
-  var BUTTON_TITLE = "Generate a new image with a fresh random seed, reusing every other setting from this image (including the already-finalized prompt — wildcards and MagicPrompt are not re-rolled).";
+  var BUTTON_TITLE2 = "Generate a new image with a fresh random seed, reusing every other setting from this image (including the already-finalized prompt — wildcards and MagicPrompt are not re-rolled).";
   var registered = false;
   var NON_PARAM_KEYS = /* @__PURE__ */ new Set(["swarm_version"]);
   var parseSwarmMetadata = (raw) => {
@@ -427,7 +536,7 @@
       }
     );
   };
-  var init3 = () => {
+  var init4 = () => {
     if (registered) {
       return;
     }
@@ -438,14 +547,14 @@
     registerMediaButton(
       BUTTON_NAME,
       onRedoClick,
-      BUTTON_TITLE,
+      BUTTON_TITLE2,
       ["image", "video"],
       false,
       true
     );
   };
   var redo = {
-    init: init3,
+    init: init4,
     run: onRedoClick
   };
 
@@ -588,12 +697,12 @@
     }
     syncPicker(picker);
   };
-  var started3 = false;
+  var started4 = false;
   var initArchPickers = (root) => {
-    if (started3) {
+    if (started4) {
       return;
     }
-    started3 = true;
+    started4 = true;
     root.addEventListener("click", (e) => {
       const target = e.target;
       if (!target) {
@@ -1417,7 +1526,7 @@
       }
     );
   };
-  var init4 = () => {
+  var init5 = () => {
     const toolDiv = registerNewTool("whattheduck", "WhatTheDuck Settings");
     toolDiv.innerHTML = renderSettingsForm({
       keyboardNavigationEnabled,
@@ -1456,7 +1565,7 @@
     });
   };
   var whatTheDuck = {
-    init: init4
+    init: init5
   };
 
   // frontend/main.ts
@@ -1465,6 +1574,7 @@
     whatTheDuck.init();
     promptEdit.init();
     archFolders.init();
+    comfyWorkflowSave.init();
   });
 })();
 //# sourceMappingURL=whattheduck.js.map
