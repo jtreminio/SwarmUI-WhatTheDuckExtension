@@ -36,26 +36,13 @@ public class WhatTheDuckExtension : Extension
     {
         LoadSettings();
 
-        string datadumpStatus = DatadumpManager.IsActive
-            ? $"enabled, folder: {DatadumpManager.DatadumpFolder}"
-            : "disabled";
-        Logs.Info($"WhatTheDuck Extension initializing (datadump: {datadumpStatus})...");
-
-        DatadumpManager.Initialize();
-        WildcardHandler.Initialize();
+        Logs.Info("WhatTheDuck Extension initializing...");
 
         API.RegisterAPICall(WhatTheDuckGetSettings, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(WhatTheDuckSaveSettings, true, Permissions.FundamentalGenerateTabAccess);
-        API.RegisterAPICall(WhatTheDuckRefreshDatadump, true, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(PromptEditApi.WhatTheDuckEditPrompt, true, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(ArchDetectionApi.WhatTheDuckDetectModelArch, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(ComfyWorkflowSaveApi.WhatTheDuckSaveComfyWorkflow, true, Permissions.FundamentalGenerateTabAccess);
-    }
-
-    public override void OnShutdown()
-    {
-        DatadumpManager.Shutdown();
-        WildcardHandler.Shutdown();
     }
 
     #region Settings Management
@@ -71,14 +58,6 @@ public class WhatTheDuckExtension : Extension
                 if (settings.TryGetValue("keyboardNavigationEnabled", out JToken keyboardNavToken))
                 {
                     KeyboardNavigationEnabled = keyboardNavToken.Value<bool>();
-                }
-                if (settings.TryGetValue("datadumpEnabled", out JToken datadumpEnabledToken))
-                {
-                    DatadumpManager.Enabled = datadumpEnabledToken.Value<bool>();
-                }
-                if (settings.TryGetValue("datadumpFolder", out JToken datadumpFolderToken))
-                {
-                    DatadumpManager.DatadumpFolder = datadumpFolderToken.Value<string>();
                 }
                 if (settings.TryGetValue("clipboardPathFrom", out JToken clipboardFromToken))
                 {
@@ -112,8 +91,6 @@ public class WhatTheDuckExtension : Extension
             JObject settings = new()
             {
                 ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
-                ["datadumpEnabled"] = DatadumpManager.Enabled,
-                ["datadumpFolder"] = DatadumpManager.DatadumpFolder,
                 ["clipboardPathFrom"] = ClipboardPathFrom,
                 ["clipboardPathTo"] = ClipboardPathTo,
                 ["archFolderMappings"] = ArchFolderMappings
@@ -180,11 +157,6 @@ public class WhatTheDuckExtension : Extension
         {
             ["success"] = true,
             ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
-            ["datadumpEnabled"] = DatadumpManager.Enabled,
-            ["datadumpFolder"] = DatadumpManager.DatadumpFolder,
-            ["datadumpCount"] = DatadumpManager.Count,
-            ["datadumpActive"] = DatadumpManager.IsActive,
-            ["modifiedPlaceholders"] = new JArray(DatadumpManager.GetModifiedPlaceholders()),
             ["clipboardPathFrom"] = ClipboardPathFrom,
             ["clipboardPathTo"] = ClipboardPathTo,
             // Swarm's own base path, offered as the Server Path Prefix placeholder since dumps
@@ -195,13 +167,11 @@ public class WhatTheDuckExtension : Extension
         };
     }
 
-    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool datadumpEnabled = false, string datadumpFolder = "", string archFolderMappings = null, string clipboardPathFrom = "", string clipboardPathTo = "")
+    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, string archFolderMappings = null, string clipboardPathFrom = "", string clipboardPathTo = "")
     {
         try
         {
             KeyboardNavigationEnabled = keyboardNavigationEnabled;
-            DatadumpManager.Enabled = datadumpEnabled;
-            DatadumpManager.DatadumpFolder = datadumpFolder ?? "";
             ClipboardPathFrom = clipboardPathFrom?.Trim() ?? "";
             ClipboardPathTo = clipboardPathTo?.Trim() ?? "";
             // Null means the caller didn't send the field; don't wipe saved mappings.
@@ -209,20 +179,12 @@ public class WhatTheDuckExtension : Extension
             {
                 ArchFolderMappings = SanitizeArchMappings(JArray.Parse(string.IsNullOrWhiteSpace(archFolderMappings) ? "[]" : archFolderMappings));
             }
-            DatadumpManager.SyncPlaceholders();
             SaveSettings();
-            WildcardHandler.OnSettingsChanged();
-
-            string datadumpStatus = DatadumpManager.IsActive
-                ? $"enabled, folder: {DatadumpManager.DatadumpFolder}"
-                : "disabled";
-            Logs.Info($"WhatTheDuck: Settings updated - datadump: {datadumpStatus}, keyboard navigation: {keyboardNavigationEnabled}");
+            Logs.Info($"WhatTheDuck: Settings updated - keyboard navigation: {keyboardNavigationEnabled}");
 
             return new JObject
             {
-                ["success"] = true,
-                ["datadumpActive"] = DatadumpManager.IsActive,
-                ["datadumpCount"] = DatadumpManager.Count
+                ["success"] = true
             };
         }
         catch (Exception ex)
@@ -233,30 +195,6 @@ public class WhatTheDuckExtension : Extension
                 ["error"] = ex.Message
             };
         }
-    }
-
-    public async Task<JObject> WhatTheDuckRefreshDatadump(Session _)
-    {
-        var (success, fileCount, message, error) = DatadumpManager.Refresh();
-
-        if (success)
-        {
-            var modifiedPlaceholders = DatadumpManager.GetModifiedPlaceholders();
-
-            return new JObject
-            {
-                ["success"] = true,
-                ["datadumpCount"] = fileCount,
-                ["message"] = message,
-                ["modifiedPlaceholders"] = new JArray(modifiedPlaceholders)
-            };
-        }
-
-        return new JObject
-        {
-            ["success"] = false,
-            ["error"] = error
-        };
     }
 
     #endregion

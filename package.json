@@ -1,7 +1,7 @@
 {
     "name": "swarmui-whattheduck-extension",
     "version": "1.0.0",
-    "description": "WhatTheDuck extension for SwarmUI - keyboard navigation, comparison shortcuts, and datadump wildcards",
+    "description": "WhatTheDuck extension for SwarmUI - keyboard navigation, comparison shortcuts, and workflow tools",
     "private": true,
     "type": "module",
     "scripts": {
