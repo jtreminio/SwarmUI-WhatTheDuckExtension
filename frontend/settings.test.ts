@@ -48,6 +48,7 @@ describe("settings pure renderers", () => {
         it("checks keyboard navigation when enabled in state", () => {
             const html = renderSettingsForm({
                 keyboardNavigationEnabled: true,
+                trimPromptVariables: false,
                 archFolderMappings: [],
                 clipboardPathFrom: "",
                 clipboardPathTo: "",
@@ -66,6 +67,7 @@ describe("settings pure renderers", () => {
             const wrapper = document.createElement("div");
             wrapper.innerHTML = renderSettingsForm({
                 keyboardNavigationEnabled: false,
+                trimPromptVariables: false,
                 archFolderMappings: [],
                 clipboardPathFrom: "",
                 clipboardPathTo: "",
@@ -77,10 +79,28 @@ describe("settings pure renderers", () => {
             expect(keyboardNav?.checked).toBe(false);
         });
 
+        it("checks prompt-variable trimming when enabled in state", () => {
+            const wrapper = document.createElement("div");
+            wrapper.innerHTML = renderSettingsForm({
+                keyboardNavigationEnabled: false,
+                trimPromptVariables: true,
+                archFolderMappings: [],
+                clipboardPathFrom: "",
+                clipboardPathTo: "",
+            });
+
+            expect(
+                wrapper.querySelector<HTMLInputElement>(
+                    "#whattheduck-trim-prompt-variables",
+                )?.checked,
+            ).toBe(true);
+        });
+
         it("includes the containers the controller later populates", () => {
             const wrapper = document.createElement("div");
             wrapper.innerHTML = renderSettingsForm({
                 keyboardNavigationEnabled: false,
+                trimPromptVariables: false,
                 archFolderMappings: [],
                 clipboardPathFrom: "",
                 clipboardPathTo: "",
@@ -99,6 +119,7 @@ describe("settings pure renderers", () => {
             const wrapper = document.createElement("div");
             wrapper.innerHTML = renderSettingsForm({
                 keyboardNavigationEnabled: false,
+                trimPromptVariables: false,
                 archFolderMappings: [],
                 clipboardPathFrom: "",
                 clipboardPathTo: "",
@@ -116,6 +137,7 @@ describe("settings pure renderers", () => {
             const wrapper = document.createElement("div");
             wrapper.innerHTML = renderSettingsForm({
                 keyboardNavigationEnabled: false,
+                trimPromptVariables: false,
                 archFolderMappings: [],
                 clipboardPathFrom: "",
                 clipboardPathTo: "",
@@ -132,6 +154,7 @@ describe("settings pure renderers", () => {
             const wrapper = document.createElement("div");
             wrapper.innerHTML = renderSettingsForm({
                 keyboardNavigationEnabled: false,
+                trimPromptVariables: false,
                 archFolderMappings: [],
                 clipboardPathFrom: "/workspace",
                 clipboardPathTo: "~/swarm-data",
@@ -153,6 +176,7 @@ describe("settings pure renderers", () => {
             const wrapper = document.createElement("div");
             wrapper.innerHTML = renderSettingsForm({
                 keyboardNavigationEnabled: false,
+                trimPromptVariables: false,
                 archFolderMappings: [
                     {
                         architectures: ["Anima", "Pony"],

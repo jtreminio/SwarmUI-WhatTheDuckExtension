@@ -1277,6 +1277,24 @@
                                 <br><b>Note:</b> Changes take effect after page reload.
                             </div>
 
+                            <div class="auto-input auto-input-flex">
+                                <span class="auto-input-name">
+                                    Trim Prompt Variables
+                                    <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_trim_prompt_variables', arguments[0])">?</span>
+                                </span>
+                                <label class="auto-checkbox">
+                                    <input type="checkbox" id="whattheduck-trim-prompt-variables" ${state.trimPromptVariables ? "checked" : ""}>
+                                    <span class="auto-checkbox-label">Enable</span>
+                                </label>
+                            </div>
+                            <div class="sui-popover sui-info-popover" id="popover_whattheduck_trim_prompt_variables">
+                                <b>Trim Prompt Variables</b> (toggle):<br>
+                                <span class="slight-left-margin-block">
+                                    Removes whitespace from the beginning and end of every value resolved by a prompt <code>&lt;setvar[...]:...&gt;</code> tag. The trimmed value is stored in the current generation's variable data, so both the tag's emitted text and later <code>&lt;var:...&gt;</code> references use it.
+                                </span>
+                                <br><b>Note:</b> Nested prompt tags are resolved before trimming, and changes apply to new generations immediately.
+                            </div>
+
                         </div>
                     </div>
 
@@ -1360,6 +1378,7 @@
             </div>
         `;
   var keyboardNavigationEnabled = true;
+  var trimPromptVariables = false;
   var archFolderMappings = [];
   var clipboardPathFrom = "";
   var clipboardPathTo = "";
@@ -1404,12 +1423,19 @@
           return;
         }
         keyboardNavigationEnabled = data.keyboardNavigationEnabled ?? false;
+        trimPromptVariables = data.trimPromptVariables ?? false;
         clipboardPathFrom = data.clipboardPathFrom || "";
         clipboardPathTo = data.clipboardPathTo || "";
         serverRootPath = data.serverRootPath || "";
         document.getElementById(
           "whattheduck-keyboard-nav"
         ).checked = keyboardNavigationEnabled;
+        const trimPromptVariablesInput = document.getElementById(
+          "whattheduck-trim-prompt-variables"
+        );
+        if (trimPromptVariablesInput) {
+          trimPromptVariablesInput.checked = trimPromptVariables;
+        }
         const fromInput = document.getElementById(
           "whattheduck-clipboard-from"
         );
@@ -1435,6 +1461,9 @@
   };
   var saveSettings = () => {
     const keyboardNav = readChecked("whattheduck-keyboard-nav");
+    const nextTrimPromptVariables = readChecked(
+      "whattheduck-trim-prompt-variables"
+    );
     const nextArchMappings = readArchMappings(document);
     const nextClipboardFrom = readValue("whattheduck-clipboard-from").trim();
     const nextClipboardTo = readValue("whattheduck-clipboard-to").trim();
@@ -1442,6 +1471,7 @@
       "WhatTheDuckSaveSettings",
       {
         keyboardNavigationEnabled: keyboardNav,
+        trimPromptVariables: nextTrimPromptVariables,
         archFolderMappings: JSON.stringify(nextArchMappings),
         clipboardPathFrom: nextClipboardFrom,
         clipboardPathTo: nextClipboardTo
@@ -1449,6 +1479,7 @@
       (data) => {
         if (data.success) {
           keyboardNavigationEnabled = keyboardNav;
+          trimPromptVariables = nextTrimPromptVariables;
           clipboardPathFrom = nextClipboardFrom;
           clipboardPathTo = nextClipboardTo;
           applyArchMappings(nextArchMappings);
@@ -1469,6 +1500,7 @@
     const toolDiv = registerNewTool("whattheduck", "WhatTheDuck Settings");
     toolDiv.innerHTML = renderSettingsForm({
       keyboardNavigationEnabled,
+      trimPromptVariables,
       archFolderMappings,
       clipboardPathFrom,
       clipboardPathTo,

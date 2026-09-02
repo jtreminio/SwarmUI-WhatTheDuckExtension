@@ -13,6 +13,7 @@ import { initKeyboardNavigation } from "./keyboardNavigation";
 interface WhatTheDuckSettingsResponse {
     success: boolean;
     keyboardNavigationEnabled?: boolean;
+    trimPromptVariables?: boolean;
     clipboardPathFrom?: string;
     clipboardPathTo?: string;
     serverRootPath?: string;
@@ -23,6 +24,7 @@ interface WhatTheDuckSettingsResponse {
 
 export interface SettingsFormState {
     keyboardNavigationEnabled: boolean;
+    trimPromptVariables: boolean;
     archFolderMappings: ArchFolderMapping[];
     clipboardPathFrom: string;
     clipboardPathTo: string;
@@ -163,6 +165,24 @@ export const renderSettingsForm = (state: SettingsFormState): string => `
                                 <br><b>Note:</b> Changes take effect after page reload.
                             </div>
 
+                            <div class="auto-input auto-input-flex">
+                                <span class="auto-input-name">
+                                    Trim Prompt Variables
+                                    <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_trim_prompt_variables', arguments[0])">?</span>
+                                </span>
+                                <label class="auto-checkbox">
+                                    <input type="checkbox" id="whattheduck-trim-prompt-variables" ${state.trimPromptVariables ? "checked" : ""}>
+                                    <span class="auto-checkbox-label">Enable</span>
+                                </label>
+                            </div>
+                            <div class="sui-popover sui-info-popover" id="popover_whattheduck_trim_prompt_variables">
+                                <b>Trim Prompt Variables</b> (toggle):<br>
+                                <span class="slight-left-margin-block">
+                                    Removes whitespace from the beginning and end of every value resolved by a prompt <code>&lt;setvar[...]:...&gt;</code> tag. The trimmed value is stored in the current generation's variable data, so both the tag's emitted text and later <code>&lt;var:...&gt;</code> references use it.
+                                </span>
+                                <br><b>Note:</b> Nested prompt tags are resolved before trimming, and changes apply to new generations immediately.
+                            </div>
+
                         </div>
                     </div>
 
@@ -249,6 +269,7 @@ export const renderSettingsForm = (state: SettingsFormState): string => `
 // --- Mutable module state ----------------------------------------------------
 
 let keyboardNavigationEnabled = true;
+let trimPromptVariables = false;
 let archFolderMappings: ArchFolderMapping[] = [];
 let clipboardPathFrom = "";
 let clipboardPathTo = "";
@@ -312,6 +333,7 @@ const loadSettings = (): void => {
             }
 
             keyboardNavigationEnabled = data.keyboardNavigationEnabled ?? false;
+            trimPromptVariables = data.trimPromptVariables ?? false;
             clipboardPathFrom = data.clipboardPathFrom || "";
             clipboardPathTo = data.clipboardPathTo || "";
             serverRootPath = data.serverRootPath || "";
@@ -321,6 +343,12 @@ const loadSettings = (): void => {
                     "whattheduck-keyboard-nav",
                 ) as HTMLInputElement
             ).checked = keyboardNavigationEnabled;
+            const trimPromptVariablesInput = document.getElementById(
+                "whattheduck-trim-prompt-variables",
+            ) as HTMLInputElement | null;
+            if (trimPromptVariablesInput) {
+                trimPromptVariablesInput.checked = trimPromptVariables;
+            }
             const fromInput = document.getElementById(
                 "whattheduck-clipboard-from",
             ) as HTMLInputElement | null;
@@ -349,6 +377,9 @@ const loadSettings = (): void => {
 
 const saveSettings = (): void => {
     const keyboardNav = readChecked("whattheduck-keyboard-nav");
+    const nextTrimPromptVariables = readChecked(
+        "whattheduck-trim-prompt-variables",
+    );
     const nextArchMappings = readArchMappings(document);
     const nextClipboardFrom = readValue("whattheduck-clipboard-from").trim();
     const nextClipboardTo = readValue("whattheduck-clipboard-to").trim();
@@ -357,6 +388,7 @@ const saveSettings = (): void => {
         "WhatTheDuckSaveSettings",
         {
             keyboardNavigationEnabled: keyboardNav,
+            trimPromptVariables: nextTrimPromptVariables,
             archFolderMappings: JSON.stringify(nextArchMappings),
             clipboardPathFrom: nextClipboardFrom,
             clipboardPathTo: nextClipboardTo,
@@ -364,6 +396,7 @@ const saveSettings = (): void => {
         (data) => {
             if (data.success) {
                 keyboardNavigationEnabled = keyboardNav;
+                trimPromptVariables = nextTrimPromptVariables;
                 clipboardPathFrom = nextClipboardFrom;
                 clipboardPathTo = nextClipboardTo;
                 applyArchMappings(nextArchMappings);
@@ -387,6 +420,7 @@ const init = (): void => {
 
     toolDiv.innerHTML = renderSettingsForm({
         keyboardNavigationEnabled,
+        trimPromptVariables,
         archFolderMappings,
         clipboardPathFrom,
         clipboardPathTo,

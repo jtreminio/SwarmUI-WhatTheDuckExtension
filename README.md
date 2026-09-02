@@ -30,6 +30,10 @@ In the comparison modal, number keys (or their Shift symbols) switch the view:
 
 Can be enabled/disabled in the settings panel.
 
+### Prompt Variable Trimming
+
+Adds an opt-in **Trim Prompt Variables** setting. When enabled, values assigned with SwarmUI's `<setvar[...]:...>` prompt tag have leading and trailing whitespace removed after nested prompt tags are resolved. The trimmed value is written back to the current generation's variable dictionary, so both an emitting `<setvar>` and later `<var:...>` references use the same normalized value.
+
 ### Redo
 
 Adds a **Redo** entry to the current image's action menu (the "More" dropdown alongside "Upscale 2x", "Refine Image", and "View In History").

@@ -13,6 +13,10 @@ public class WhatTheDuckExtension : Extension
 
     public static bool KeyboardNavigationEnabled { get; set; } = true;
 
+    /// <summary>Whether values resolved by prompt setvar tags should have leading
+    /// and trailing whitespace removed before they are stored for the generation.</summary>
+    public static bool TrimPromptVariables { get; set; }
+
     /// <summary>Server-side path prefix rewritten out of the Comfy workflow dump paths that get
     /// copied to the clipboard, eg "/workspace" when SwarmUI runs in a container.</summary>
     public static string ClipboardPathFrom { get; set; } = "";
@@ -38,6 +42,8 @@ public class WhatTheDuckExtension : Extension
 
         Logs.Info("WhatTheDuck Extension initializing...");
 
+        PromptVariableTrimming.Register();
+
         API.RegisterAPICall(WhatTheDuckGetSettings, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(WhatTheDuckSaveSettings, true, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(PromptEditApi.WhatTheDuckEditPrompt, true, Permissions.FundamentalGenerateTabAccess);
@@ -58,6 +64,10 @@ public class WhatTheDuckExtension : Extension
                 if (settings.TryGetValue("keyboardNavigationEnabled", out JToken keyboardNavToken))
                 {
                     KeyboardNavigationEnabled = keyboardNavToken.Value<bool>();
+                }
+                if (settings.TryGetValue("trimPromptVariables", out JToken trimPromptVariablesToken))
+                {
+                    TrimPromptVariables = trimPromptVariablesToken.Value<bool>();
                 }
                 if (settings.TryGetValue("clipboardPathFrom", out JToken clipboardFromToken))
                 {
@@ -91,6 +101,7 @@ public class WhatTheDuckExtension : Extension
             JObject settings = new()
             {
                 ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
+                ["trimPromptVariables"] = TrimPromptVariables,
                 ["clipboardPathFrom"] = ClipboardPathFrom,
                 ["clipboardPathTo"] = ClipboardPathTo,
                 ["archFolderMappings"] = ArchFolderMappings
@@ -157,6 +168,7 @@ public class WhatTheDuckExtension : Extension
         {
             ["success"] = true,
             ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
+            ["trimPromptVariables"] = TrimPromptVariables,
             ["clipboardPathFrom"] = ClipboardPathFrom,
             ["clipboardPathTo"] = ClipboardPathTo,
             // Swarm's own base path, offered as the Server Path Prefix placeholder since dumps
@@ -167,11 +179,12 @@ public class WhatTheDuckExtension : Extension
         };
     }
 
-    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, string archFolderMappings = null, string clipboardPathFrom = "", string clipboardPathTo = "")
+    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool trimPromptVariables = false, string archFolderMappings = null, string clipboardPathFrom = "", string clipboardPathTo = "")
     {
         try
         {
             KeyboardNavigationEnabled = keyboardNavigationEnabled;
+            TrimPromptVariables = trimPromptVariables;
             ClipboardPathFrom = clipboardPathFrom?.Trim() ?? "";
             ClipboardPathTo = clipboardPathTo?.Trim() ?? "";
             // Null means the caller didn't send the field; don't wipe saved mappings.
@@ -180,7 +193,7 @@ public class WhatTheDuckExtension : Extension
                 ArchFolderMappings = SanitizeArchMappings(JArray.Parse(string.IsNullOrWhiteSpace(archFolderMappings) ? "[]" : archFolderMappings));
             }
             SaveSettings();
-            Logs.Info($"WhatTheDuck: Settings updated - keyboard navigation: {keyboardNavigationEnabled}");
+            Logs.Info($"WhatTheDuck: Settings updated - keyboard navigation: {keyboardNavigationEnabled}, trim prompt variables: {trimPromptVariables}");
 
             return new JObject
             {
