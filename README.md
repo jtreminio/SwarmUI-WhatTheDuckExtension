@@ -6,6 +6,16 @@ Use at your own peril!
 
 ## Features
 
+### Model Multi-Select and Preset Links
+
+With WhatTheDuck's **Keyboard Navigation** enabled, hover anywhere on a model card and press **C** to enter multi-select and toggle that model's selection. Repeat over other models to add them; press **C** again over a selected model to remove it. Over images, **C** retains its comparison shortcut. Press **Esc** to clear model and image selections and exit multi-select. An open modal or dropdown closes first.
+
+Choose **Set Linked Preset** from the action dropdown, select a preset, and click **Apply** to assign it to every selected model, or choose **(None)** to remove their preset links. SwarmUI's checkmark toggle and image-click selection are also available in model browsers.
+
+If every selected model has the same single linked preset, the picker preselects it. If none have links, it shows **(None)**; mixed or multiple links leave the choice blank.
+
+This updates the same per-user **Linked Preset** setting as the model metadata editor, replacing existing links for the selection. SwarmUI automatically activates linked presets when selecting checkpoints or LoRAs. Other model types can store links, but SwarmUI does not automatically activate them.
+
 ### Keyboard Navigation
 
 Adds keyboard shortcuts for image navigation and actions:

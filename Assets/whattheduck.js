@@ -340,8 +340,189 @@
     init: init2
   };
 
+  // frontend/modelMultiSelect.ts
+  var ACTION = "Set Linked Preset";
+  var MODAL_ID = "wtd-model-preset-modal";
+  var patched = /* @__PURE__ */ new WeakSet();
+  var dialog = null;
+  function toggleHoveredModelSelection(target) {
+    const tile = target?.closest("[data-name]");
+    if (!tile?.isConnected || tile.closest("[hidden], [inert], .tab-pane:not(.active)") || typeof allModelBrowsers === "undefined") {
+      return false;
+    }
+    const wrapper = allModelBrowsers.find(
+      ({ browser }) => patched.has(browser) && tile.parentElement === browser.contentDiv
+    );
+    if (!wrapper) {
+      return false;
+    }
+    wrapper.browser.setMultiSelectActive(true);
+    return wrapper.browser.handleMultiSelectTileClick(tile);
+  }
+  function choosePreset(wrapper) {
+    if (dialog?.isConnected) {
+      return;
+    }
+    const names = [
+      ...new Set(
+        wrapper.browser.getMultiSelectedFiles().map((file) => cleanModelName(file.data.name))
+      )
+    ];
+    if (!names.length || typeof modelPresetLinkManager === "undefined") {
+      return;
+    }
+    const picker = document.createElement("div");
+    dialog = picker;
+    picker.id = MODAL_ID;
+    picker.className = "modal";
+    picker.tabIndex = -1;
+    picker.setAttribute("role", "dialog");
+    picker.setAttribute("aria-labelledby", "wtd-model-preset-title");
+    picker.innerHTML = `
+        <div class="modal-dialog" role="document">
+            <form class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="wtd-model-preset-title">Set Linked Preset</h5>
+                </div>
+                <div class="modal-body">
+                    <p class="wtd-model-preset-summary"></p>
+                    <label for="wtd-model-preset-choice">Preset</label>
+                    <select id="wtd-model-preset-choice" class="modal_text_extra"></select>
+                    <p>This replaces the existing preset links for these models. Choose (None) to remove their links.</p>
+                    <p class="wtd-model-preset-status" role="status"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary basic-button">Apply</button>
+                    <button type="button" class="btn btn-secondary basic-button">Cancel</button>
+                </div>
+            </form>
+        </div>`;
+    picker.querySelector(".wtd-model-preset-summary").textContent = `Assign a preset to ${names.length} selected ${wrapper.subType} model${names.length === 1 ? "" : "s"}.`;
+    const select = picker.querySelector("select");
+    select.add(new Option("(None)", ""));
+    const titles = new Set(
+      (typeof allPresetsUnsorted === "undefined" ? [] : allPresetsUnsorted).map((preset) => (preset.data || preset).title).filter((title) => !!title?.trim())
+    );
+    for (const title of [...titles].sort((a, b) => a.localeCompare(b))) {
+      select.add(new Option(title, title));
+    }
+    const currentLinks = names.map(
+      (name) => modelPresetLinkManager.links[wrapper.subType]?.[name] ?? []
+    );
+    const firstLinks = currentLinks[0];
+    select.selectedIndex = -1;
+    if (firstLinks.length <= 1 && currentLinks.every(
+      (links) => links.length === firstLinks.length && links[0] === firstLinks[0]
+    )) {
+      select.value = firstLinks[0] ?? "";
+    }
+    const apply = picker.querySelector("[type=submit]");
+    const cancel = picker.querySelector("[type=button]");
+    const status = picker.querySelector("[role=status]");
+    apply.disabled = select.selectedIndex < 0;
+    select.addEventListener("change", () => {
+      apply.disabled = select.selectedIndex < 0;
+    });
+    let saving = false;
+    const hide = () => {
+      $(`#${MODAL_ID}`).modal("hide");
+    };
+    cancel.addEventListener("click", hide);
+    picker.addEventListener("hide.bs.modal", (event) => {
+      if (saving) {
+        event.preventDefault();
+      }
+    });
+    picker.addEventListener("hidden.bs.modal", () => {
+      $(`#${MODAL_ID}`).modal("dispose");
+      picker.remove();
+      dialog = null;
+    });
+    picker.querySelector("form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (saving || select.selectedIndex < 0) {
+        return;
+      }
+      saving = true;
+      select.disabled = apply.disabled = cancel.disabled = true;
+      status.textContent = "Saving preset links…";
+      const manager = modelPresetLinkManager;
+      const links = JSON.parse(JSON.stringify(manager.links));
+      links[wrapper.subType] ??= {};
+      for (const name of names) {
+        if (select.value) {
+          links[wrapper.subType][name] = [select.value];
+        } else {
+          delete links[wrapper.subType][name];
+        }
+      }
+      genericRequest(
+        "SetPresetLinks",
+        links,
+        () => {
+          manager.links[wrapper.subType] ??= {};
+          for (const name of names) {
+            if (links[wrapper.subType][name]) {
+              manager.links[wrapper.subType][name] = links[wrapper.subType][name];
+            } else {
+              delete manager.links[wrapper.subType][name];
+            }
+          }
+          saving = false;
+          hide();
+          wrapper.browser.rerender();
+          doNoticePopover(
+            `Updated preset links for ${names.length} models.`,
+            "notice-pop-green"
+          );
+        },
+        0,
+        (message) => {
+          saving = false;
+          select.disabled = apply.disabled = cancel.disabled = false;
+          status.textContent = `Could not save preset links: ${message}`;
+        }
+      );
+    });
+    document.body.appendChild(picker);
+    $(`#${MODAL_ID}`).modal("show");
+  }
+  function enableModelMultiSelect(wrapper) {
+    const browser = wrapper.browser;
+    if (wrapper.subType === "Wildcards" || patched.has(browser) || typeof browser.getCommonMultiSelectActionLabels !== "function" || typeof browser.runMultiSelectAction !== "function") {
+      return;
+    }
+    patched.add(browser);
+    browser.allowMultiSelect = true;
+    const originalLabels = browser.getCommonMultiSelectActionLabels;
+    browser.getCommonMultiSelectActionLabels = function() {
+      const labels = originalLabels.call(this);
+      if (this.getMultiSelectedFiles().length && !labels.includes(ACTION)) {
+        labels.push(ACTION);
+      }
+      return labels;
+    };
+    const originalRun = browser.runMultiSelectAction;
+    browser.runMultiSelectAction = function(label) {
+      if (label === ACTION) {
+        choosePreset(wrapper);
+      } else {
+        originalRun.call(this, label);
+      }
+    };
+  }
+  var modelMultiSelect = {
+    init() {
+      if (typeof allModelBrowsers !== "undefined") {
+        for (const wrapper of allModelBrowsers) {
+          enableModelMultiSelect(wrapper);
+        }
+      }
+    }
+  };
+
   // frontend/promptEdit.ts
-  var MODAL_ID = "wtd_prompt_edit_modal";
+  var MODAL_ID2 = "wtd_prompt_edit_modal";
   var TEXTAREA_ID = "wtd_prompt_edit_textarea";
   var SAVE_ID = "wtd_prompt_edit_save";
   var EDIT_BTN_CLASS = "wtd-prompt-edit-button";
@@ -350,13 +531,13 @@
   var getTextarea = () => document.getElementById(TEXTAREA_ID);
   var showModal = () => {
     if (typeof $ === "function") {
-      $(`#${MODAL_ID}`).modal("show");
+      $(`#${MODAL_ID2}`).modal("show");
     }
     getTextarea()?.focus();
   };
   var hideModal = () => {
     if (typeof $ === "function") {
-      $(`#${MODAL_ID}`).modal("hide");
+      $(`#${MODAL_ID2}`).modal("hide");
     }
   };
   var setTextarea = (value) => {
@@ -467,12 +648,12 @@
     );
   }
   function buildModal() {
-    if (document.getElementById(MODAL_ID)) {
+    if (document.getElementById(MODAL_ID2)) {
       return;
     }
     const modal = document.createElement("div");
     modal.className = "modal";
-    modal.id = MODAL_ID;
+    modal.id = MODAL_ID2;
     modal.tabIndex = -1;
     modal.setAttribute("role", "dialog");
     modal.innerHTML = `
@@ -863,6 +1044,7 @@
   };
   var attached = false;
   var hovered = null;
+  var hoveredElement = null;
   var markedBlock = null;
   var isComparable = (block) => {
     if (!block || !document.body.contains(block)) {
@@ -925,7 +1107,13 @@
     imageCompareHelper.showComparison(items[0], items[1]);
   };
   var handleCompareKey = () => {
-    if (typeof imageCompareHelper === "undefined" || imageCompareHelper.isOpen()) {
+    if (document.querySelector("dialog[open], .modal.show") || typeof imageCompareHelper !== "undefined" && imageCompareHelper.isOpen()) {
+      return false;
+    }
+    if (toggleHoveredModelSelection(hoveredElement)) {
+      return true;
+    }
+    if (typeof imageCompareHelper === "undefined") {
       return false;
     }
     const target = getTargetBlock();
@@ -953,14 +1141,22 @@
     if (event.ctrlKey || event.altKey || event.metaKey) {
       return;
     }
-    if (isEditableElement(event.target)) {
-      return;
-    }
     const key = event.key;
     if (key === "Escape") {
-      if (markedBlock) {
-        clearMark();
+      if (document.querySelector(
+        "dialog[open], .modal.show, .sui-popover-visible"
+      ) || typeof imageCompareHelper !== "undefined" && imageCompareHelper.isOpen()) {
+        return;
       }
+      clearMark();
+      for (const toggle of document.querySelectorAll(
+        "button.browser-multiselect-toggle-active"
+      )) {
+        toggle.click();
+      }
+      return;
+    }
+    if (isEditableElement(event.target)) {
       return;
     }
     if (key !== "c" && key !== "C") {
@@ -972,6 +1168,7 @@
   };
   var handleMouseover = (event) => {
     const target = event.target;
+    hoveredElement = target;
     const block = target?.closest?.(".image-block");
     hovered = closestContainer(block) ? block : null;
   };
@@ -981,11 +1178,18 @@
     }
     document.addEventListener("keydown", handleKeydown, true);
     document.addEventListener("mouseover", handleMouseover, true);
+    document.addEventListener(
+      "mouseout",
+      (event) => {
+        hoveredElement = event.relatedTarget instanceof Element ? event.relatedTarget : null;
+      },
+      true
+    );
     attached = true;
   };
 
   // frontend/compareShortcuts.ts
-  var MODAL_ID2 = "image_compare_modal";
+  var MODAL_ID3 = "image_compare_modal";
   var KEY_TO_SELECTOR = {
     "1": '[data-compare-mode="side"]',
     "!": '[data-compare-mode="side"]',
@@ -1021,7 +1225,7 @@
     if (!selector) {
       return;
     }
-    const modal = document.getElementById(MODAL_ID2);
+    const modal = document.getElementById(MODAL_ID3);
     const button = modal?.querySelector(selector);
     if (!button) {
       return;
@@ -1546,6 +1750,7 @@
     promptEdit.init();
     archFolders.init();
     comfyWorkflowSave.init();
+    modelMultiSelect.init();
   });
 })();
 //# sourceMappingURL=whattheduck.js.map

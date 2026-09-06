@@ -17,6 +17,7 @@
  * it is itself a single-key shortcut.
  */
 import { isEditableElement, suppressEvent } from "./dom";
+import { toggleHoveredModelSelection } from "./modelMultiSelect";
 
 const MARKED_CLASS = "wtd-compare-marked";
 const BATCH_ID = "current_image_batch";
@@ -37,6 +38,7 @@ const closestContainer = (block: HTMLElement | null): HTMLElement | null => {
 
 let attached = false;
 let hovered: HTMLElement | null = null;
+let hoveredElement: Element | null = null;
 let markedBlock: HTMLElement | null = null;
 
 /** A block is comparable if it is a real, finished image/video tile (not a placeholder/failed/empty tile). */
@@ -111,11 +113,18 @@ const launchCompare = (marked: HTMLElement, target: HTMLElement): void => {
 };
 
 const handleCompareKey = (): boolean => {
-    // The compare modal owns its own interactions while open; don't hijack C there.
+    // Modals own their own interactions; don't act on a tile behind them.
     if (
-        typeof imageCompareHelper === "undefined" ||
-        imageCompareHelper.isOpen()
+        document.querySelector("dialog[open], .modal.show") ||
+        (typeof imageCompareHelper !== "undefined" &&
+            imageCompareHelper.isOpen())
     ) {
+        return false;
+    }
+    if (toggleHoveredModelSelection(hoveredElement)) {
+        return true;
+    }
+    if (typeof imageCompareHelper === "undefined") {
         return false;
     }
     const target = getTargetBlock();
@@ -145,15 +154,28 @@ const handleKeydown = (event: KeyboardEvent): void => {
     if (event.ctrlKey || event.altKey || event.metaKey) {
         return;
     }
-    if (isEditableElement(event.target)) {
-        return;
-    }
-
     const key = event.key;
     if (key === "Escape") {
-        if (markedBlock) {
-            clearMark();
+        // Let Escape close a modal or dropdown first, preserving the selection
+        // behind it. Otherwise use the host toggles for every active browser.
+        if (
+            document.querySelector(
+                "dialog[open], .modal.show, .sui-popover-visible",
+            ) ||
+            (typeof imageCompareHelper !== "undefined" &&
+                imageCompareHelper.isOpen())
+        ) {
+            return;
         }
+        clearMark();
+        for (const toggle of document.querySelectorAll<HTMLButtonElement>(
+            "button.browser-multiselect-toggle-active",
+        )) {
+            toggle.click();
+        }
+        return;
+    }
+    if (isEditableElement(event.target)) {
         return;
     }
     if (key !== "c" && key !== "C") {
@@ -166,6 +188,7 @@ const handleKeydown = (event: KeyboardEvent): void => {
 
 const handleMouseover = (event: MouseEvent): void => {
     const target = event.target as Element | null;
+    hoveredElement = target;
     const block = target?.closest?.(".image-block") as HTMLElement | null;
     hovered = closestContainer(block) ? block : null;
 };
@@ -176,5 +199,15 @@ export const initBatchCompare = (): void => {
     }
     document.addEventListener("keydown", handleKeydown, true);
     document.addEventListener("mouseover", handleMouseover, true);
+    document.addEventListener(
+        "mouseout",
+        (event) => {
+            hoveredElement =
+                event.relatedTarget instanceof Element
+                    ? event.relatedTarget
+                    : null;
+        },
+        true,
+    );
     attached = true;
 };

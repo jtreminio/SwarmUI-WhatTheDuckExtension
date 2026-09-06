@@ -44,7 +44,31 @@ declare function genericRequest<T = unknown>(
     endpoint: string,
     data: Record<string, unknown>,
     callback: (data: T) => void,
+    depth?: number,
+    errorHandle?: (message: string) => void,
 ): void;
+
+interface WtdModelBrowser {
+    subType: string;
+    browser: {
+        allowMultiSelect: boolean;
+        contentDiv: HTMLElement;
+        setMultiSelectActive(active: boolean): void;
+        handleMultiSelectTileClick(tile: HTMLElement, event?: Event): boolean;
+        getMultiSelectedFiles(): { name: string; data: { name: string } }[];
+        getCommonMultiSelectActionLabels(): string[];
+        runMultiSelectAction(label: string): void;
+        rerender(): void;
+    };
+}
+
+type WtdPresetLinks = Record<string, Record<string, string[]>>;
+declare var allModelBrowsers: WtdModelBrowser[] | undefined;
+declare var allPresetsUnsorted:
+    | { title?: string; data?: { title: string } }[]
+    | undefined;
+declare var modelPresetLinkManager: { links: WtdPresetLinks } | undefined;
+declare function cleanModelName(name: string): string;
 
 declare function getMediaType(src: string): string;
 
@@ -123,5 +147,5 @@ declare function doNoticePopover(message: string, className: string): void;
 declare function copyText(text: string): void;
 
 declare function $(selector: string): {
-    modal(action: "show" | "hide" | "toggle"): unknown;
+    modal(action: "show" | "hide" | "toggle" | "dispose"): unknown;
 };
