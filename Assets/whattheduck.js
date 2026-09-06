@@ -31,7 +31,12 @@
       for (const arch of architectures) {
         claimedKeys.add(arch.toLowerCase());
       }
-      result.push({ architectures, checkpointFolder, loraFolder });
+      result.push({
+        architectures,
+        baseFolder: rec.baseFolder === "diffusion_models" ? "diffusion_models" : "Stable-Diffusion",
+        checkpointFolder,
+        loraFolder
+      });
     }
     return result;
   };
@@ -51,7 +56,8 @@
       if (folder) {
         return {
           folder,
-          modelType: detection.isLora ? "LoRA" : "Stable-Diffusion"
+          modelType: detection.isLora ? "LoRA" : "Stable-Diffusion",
+          ...!detection.isLora ? { baseFolder: mapping.baseFolder } : {}
         };
       }
     }
@@ -97,9 +103,11 @@
     select.value = folder;
   };
   var patchDownloader = (downloader, getMappings, detect, debounceMs = 500) => {
+    let selected = null;
     let seq = 0;
     let timer = null;
     const runDetect = (url) => {
+      selected = null;
       const mySeq = ++seq;
       detect(url, (detection) => {
         if (mySeq !== seq || !detection) {
@@ -109,18 +117,20 @@
         if (!match || downloader.url.value !== url) {
           return;
         }
+        selected = match.baseFolder ? { url, baseFolder: match.baseFolder } : null;
         downloader.type.value = match.modelType;
         applyFolderSelection(downloader.folders, match.folder);
       });
     };
     const originalUrlInput = downloader.urlInput.bind(downloader);
     downloader.urlInput = () => {
-      originalUrlInput();
+      selected = null;
       seq++;
       if (timer) {
         clearTimeout(timer);
         timer = null;
       }
+      originalUrlInput();
       const url = downloader.url.value.trim();
       if (!shouldDetectUrl(url)) {
         return;
@@ -152,6 +162,47 @@
         delayedCallback
       );
     };
+    return (url, type) => type === "Stable-Diffusion" && selected?.url === url ? selected.baseFolder : null;
+  };
+  var isGgufDownload = (url) => {
+    try {
+      const parsed = new URL(url);
+      return parsed.pathname.toLowerCase().endsWith(".gguf") || parsed.hash.toLowerCase() === "#.gguf";
+    } catch {
+      return false;
+    }
+  };
+  var patchDownloadRequests = (host, prototype, getBaseFolder) => {
+    const destinations = /* @__PURE__ */ new WeakMap();
+    let active = null;
+    const originalDownload = prototype.download;
+    prototype.download = function() {
+      if (!destinations.has(this)) {
+        destinations.set(
+          this,
+          isGgufDownload(this.url) ? null : getBaseFolder(this.url, this.type)
+        );
+      }
+      const previous = active;
+      const baseFolder = destinations.get(this);
+      active = baseFolder ? { card: this, baseFolder } : null;
+      try {
+        originalDownload.call(this);
+      } finally {
+        active = previous;
+      }
+    };
+    const originalRequest = host.makeWSRequest;
+    host.makeWSRequest = (endpoint, data, ...callbacks) => {
+      if (endpoint === "DoModelDownloadWS" && active && data.url === active.card.url && data.type === "Stable-Diffusion") {
+        return originalRequest(
+          "WhatTheDuckDownloadModelWS",
+          { ...data, baseFolder: active.baseFolder },
+          ...callbacks
+        );
+      }
+      return originalRequest(endpoint, data, ...callbacks);
+    };
   };
   var mappings = [];
   var started = false;
@@ -182,7 +233,18 @@
     if (typeof modelDownloader === "undefined" || typeof modelDownloader?.urlInput !== "function" || typeof modelDownloader?.getCivitaiMetadata !== "function") {
       return;
     }
-    patchDownloader(modelDownloader, () => mappings, requestDetection);
+    const getBaseFolder = patchDownloader(
+      modelDownloader,
+      () => mappings,
+      requestDetection
+    );
+    if (typeof ActiveModelDownload !== "undefined" && typeof makeWSRequest === "function") {
+      patchDownloadRequests(
+        window,
+        ActiveModelDownload.prototype,
+        getBaseFolder
+      );
+    }
   };
   var archFolders = {
     init
@@ -1421,12 +1483,18 @@
     return `<select class="auto-dropdown ${className}" autocomplete="off"><option value="">${escapeHtml(placeholder)}</option>${optionsHtml}</select>`;
   };
   var renderArchMappingRow = (mapping, options) => `
-            <div class="whattheduck-arch-row" data-wtd-arch-row>
-                ${renderArchPicker(mapping.architectures, options.architectures)}
-                ${renderMappingSelect("wtd-arch-checkpoint", "(No checkpoint folder)", options.checkpointFolders, mapping.checkpointFolder)}
-                ${renderMappingSelect("wtd-arch-lora", "(No LoRA folder)", options.loraFolders, mapping.loraFolder)}
-                <button type="button" class="basic-button wtd-arch-remove" title="Remove this mapping">✕</button>
-            </div>`;
+            <tr class="whattheduck-arch-row" data-wtd-arch-row>
+                <td data-label="Architectures">${renderArchPicker(mapping.architectures, options.architectures)}</td>
+                <td data-label="Base folder">
+                    <select class="auto-dropdown wtd-arch-base" aria-label="Checkpoint base folder">
+                        <option value="Stable-Diffusion"${mapping.baseFolder === "Stable-Diffusion" ? " selected" : ""}>Stable-Diffusion</option>
+                        <option value="diffusion_models"${mapping.baseFolder === "diffusion_models" ? " selected" : ""}>diffusion_models</option>
+                    </select>
+                </td>
+                <td data-label="Checkpoint folder">${renderMappingSelect("wtd-arch-checkpoint", "(No checkpoint folder)", options.checkpointFolders, mapping.checkpointFolder)}</td>
+                <td data-label="LoRA folder">${renderMappingSelect("wtd-arch-lora", "(No LoRA folder)", options.loraFolders, mapping.loraFolder)}</td>
+                <td class="wtd-arch-remove-cell"><button type="button" class="basic-button wtd-arch-remove" title="Remove this mapping">✕</button></td>
+            </tr>`;
   var renderArchMappingRows = (mappings2, options) => mappings2.map((m) => renderArchMappingRow(m, options)).join("");
   var getArchRowOptions = () => {
     const map = typeof coreModelMap === "undefined" ? void 0 : coreModelMap;
@@ -1443,6 +1511,7 @@
       architectures: Array.from(
         row.querySelector(".wtd-arch-select")?.selectedOptions ?? []
       ).map((option) => option.value),
+      baseFolder: row.querySelector(".wtd-arch-base")?.value,
       checkpointFolder: row.querySelector(".wtd-arch-checkpoint")?.value ?? "",
       loraFolder: row.querySelector(".wtd-arch-lora")?.value ?? ""
     }))
@@ -1502,7 +1571,7 @@
                         </div>
                     </div>
 
-                    <div class="input-group input-group-open">
+                    <div class="input-group input-group-open wtd-model-folders">
                         <span class="input-group-header input-group-noshrink">
                             <span class="header-label-wrap">
                                 <span class="header-label">📥 Model Auto-Folders</span>
@@ -1520,6 +1589,7 @@
                                 <span class="slight-left-margin-block">
                                     When a model URL lands in the Model Downloader utility (civitai, huggingface, or any direct safetensors/GGUF link), the extension fetches just the remote file's metadata header and identifies the architecture with SwarmUI's own model-class detection. The matched row's folder is then auto-selected in the downloader's Folder dropdown, and the Model Type is set from whether the file is a checkpoint or a LoRA.
                                     <br>• <b>Architectures</b>: one or more SwarmUI architecture IDs (e.g. <code>flux-1</code>, <code>stable-diffusion-xl-v1</code>) - click the control to open a searchable checklist (it stays open while you pick several), or remove one via its pill's ✕. Each architecture can belong to only one row, so IDs already used by another row are not offered. One ID covers both checkpoints and LoRAs of that family.
+                                    <br>• <b>Base folder</b>: checkpoint downloads go under <code>Stable-Diffusion</code> (the configured checkpoint location) or <code>diffusion_models</code> in the configured download model root. LoRAs always use their normal LoRA location. GGUF downloads use SwarmUI’s core downloader and ignore this base folder setting.
                                     <br>• <b>Checkpoint folder</b>: folder auto-selected for checkpoint downloads. Leave unset to not auto-select checkpoints.
                                     <br>• <b>LoRA folder</b>: folder auto-selected for LoRA downloads. Leave unset to not auto-select LoRAs.
                                     <br>The folder lists show folders that already contain at least one model. To use a brand-new folder, download one model into it first by typing a path in the downloader's "Save as" box.
@@ -1527,7 +1597,17 @@
                                 </span>
                             </div>
 
-                            <div id="whattheduck-arch-mappings">${renderArchMappingRows(state.archFolderMappings, getArchRowOptions())}</div>
+                            <table class="whattheduck-arch-table" aria-label="Model auto-folder mappings">
+                                <colgroup><col class="wtd-arch-column"><col><col><col><col class="wtd-arch-remove-column"></colgroup>
+                                <thead><tr>
+                                    <th scope="col">Architectures</th>
+                                    <th scope="col">Base folder</th>
+                                    <th scope="col">Checkpoint folder</th>
+                                    <th scope="col">LoRA folder</th>
+                                    <th scope="col"><span class="wtd-visually-hidden">Actions</span></th>
+                                </tr></thead>
+                                <tbody id="whattheduck-arch-mappings">${renderArchMappingRows(state.archFolderMappings, getArchRowOptions())}</tbody>
+                            </table>
 
                             <div class="whattheduck-arch-actions">
                                 <button type="button" id="whattheduck-arch-add" class="basic-button">+ Add Mapping</button>
@@ -1725,6 +1805,7 @@
         renderArchMappingRow(
           {
             architectures: [],
+            baseFolder: "Stable-Diffusion",
             checkpointFolder: "",
             loraFolder: ""
           },

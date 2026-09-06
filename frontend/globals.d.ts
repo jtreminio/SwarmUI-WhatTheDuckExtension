@@ -149,3 +149,18 @@ declare function copyText(text: string): void;
 declare function $(selector: string): {
     modal(action: "show" | "hide" | "toggle" | "dispose"): unknown;
 };
+
+/** Core downloader card and websocket transport (utiltab.js / site.js). */
+declare class ActiveModelDownload {
+    url: string;
+    type: string;
+    download(): void;
+}
+declare function makeWSRequest(
+    endpoint: string,
+    data: Record<string, unknown>,
+    callback: (data: Record<string, unknown>) => void,
+    depth?: number,
+    errorHandle?: ((message: string) => void) | null,
+    onOpen?: ((socket: WebSocket) => void) | null,
+): WebSocket | undefined;

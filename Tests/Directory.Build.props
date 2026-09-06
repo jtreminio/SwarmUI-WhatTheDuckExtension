@@ -1,0 +1,3 @@
+<Project>
+  <!-- Keep test outputs separate from extension-specific local build overrides. -->
+</Project>

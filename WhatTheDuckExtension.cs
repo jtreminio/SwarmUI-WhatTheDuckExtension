@@ -26,7 +26,7 @@ public class WhatTheDuckExtension : Extension
     public static string ClipboardPathTo { get; set; } = "";
 
     /// <summary>Architecture-to-folder mappings, as an array of
-    /// { architectures, checkpointFolder, loraFolder } objects, where architectures
+    /// { architectures, baseFolder, checkpointFolder, loraFolder } objects, where architectures
     /// holds SwarmUI compat-class IDs (e.g. "flux-1", "stable-diffusion-xl-v1").</summary>
     public static JArray ArchFolderMappings { get; set; } = [];
 
@@ -47,6 +47,7 @@ public class WhatTheDuckExtension : Extension
         API.RegisterAPICall(WhatTheDuckGetSettings, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(WhatTheDuckSaveSettings, true, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(PromptEditApi.WhatTheDuckEditPrompt, true, Permissions.FundamentalGenerateTabAccess);
+        API.RegisterAPICall(ModelDownloadApi.WhatTheDuckDownloadModelWS, true, Permissions.DownloadModels);
         API.RegisterAPICall(ArchDetectionApi.WhatTheDuckDetectModelArch, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(ComfyWorkflowSaveApi.WhatTheDuckSaveComfyWorkflow, true, Permissions.FundamentalGenerateTabAccess);
     }
@@ -151,6 +152,7 @@ public class WhatTheDuckExtension : Extension
             result.Add(new JObject
             {
                 ["architectures"] = architectures,
+                ["baseFolder"] = obj["baseFolder"]?.Type == JTokenType.String && obj.Value<string>("baseFolder") == "diffusion_models" ? "diffusion_models" : "Stable-Diffusion",
                 ["checkpointFolder"] = checkpointFolder,
                 ["loraFolder"] = loraFolder
             });

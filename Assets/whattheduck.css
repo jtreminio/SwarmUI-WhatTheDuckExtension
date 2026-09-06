@@ -1,6 +1,10 @@
 .whattheduck-settings {
     padding: 0.5rem;
-    max-width: 600px;
+    width: 100%;
+    max-width: 1200px;
+    min-width: 0;
+    box-sizing: border-box;
+    container-type: inline-size;
 }
 
 .whattheduck-actions {
@@ -86,19 +90,53 @@
 }
 
 /* Model Auto-Folders feature */
-.whattheduck-arch-row {
-    display: flex;
-    gap: 0.4rem;
-    /* The architecture multi-select is taller than the folder dropdowns; top
-       alignment keeps the folder selects and remove button on the first line. */
-    align-items: flex-start;
-    margin-bottom: 0.35rem;
+.whattheduck-settings .wtd-model-folders {
+    max-width: none;
+    box-sizing: border-box;
 }
-
+.wtd-model-folders > .input-group-content {
+    display: block;
+    max-width: none;
+    padding: 0.5rem 0.75rem 0.75rem;
+    box-sizing: border-box;
+}
+.whattheduck-arch-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+.whattheduck-arch-table .wtd-arch-column {
+    width: 32%;
+}
+.whattheduck-arch-table .wtd-arch-remove-column {
+    width: 2.75rem;
+}
+.whattheduck-arch-table th,
+.whattheduck-arch-table td {
+    padding: 0.45rem 0.3rem;
+    vertical-align: top;
+    text-align: left;
+}
+.whattheduck-arch-table th {
+    color: var(--text-soft);
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-bottom: 1px solid var(--shadow);
+}
+.whattheduck-arch-row + .whattheduck-arch-row td {
+    border-top: 1px solid var(--shadow);
+}
 .whattheduck-arch-row .wtd-arch-picker {
     position: relative;
-    flex: 1.4 1 0;
     min-width: 0;
+}
+.wtd-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
 }
 
 /* Closed state: pills inside a control styled like SwarmUI's dropdowns. */
@@ -140,9 +178,13 @@
     border: 1px solid var(--box-selected-border);
     border-radius: 1rem;
     font-size: 0.85em;
-    white-space: nowrap;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
 }
 .wtd-arch-pill-x {
+    flex: none;
     border: none;
     background: none;
     color: var(--text-soft);
@@ -215,13 +257,16 @@
     font-size: 0.85em;
 }
 
-.whattheduck-arch-row select {
-    flex: 1 1 0;
+/* Override core's width:auto !important and content-box select sizing. */
+.whattheduck-arch-table .auto-dropdown {
+    width: 100% !important;
+    max-width: 100%;
     min-width: 0;
+    min-height: 2rem;
+    box-sizing: border-box;
 }
-
 .whattheduck-arch-row .wtd-arch-remove {
-    flex: 0 0 auto;
+    margin: 0;
 }
 
 .whattheduck-arch-actions {
@@ -243,4 +288,57 @@
     margin-left: 0.3rem;
     font-weight: bold;
     color: var(--success-text, #4caf50);
+}
+
+/* Stack labeled fields when the tool panel is too narrow for four columns. */
+@container (max-width: 44rem) {
+    .whattheduck-arch-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+    }
+    .whattheduck-arch-table colgroup {
+        display: none;
+    }
+    .whattheduck-arch-table tbody {
+        display: block;
+    }
+    .whattheduck-arch-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 2.5rem;
+        padding: 0.5rem 0;
+    }
+    .whattheduck-arch-row + .whattheduck-arch-row {
+        border-top: 1px solid var(--shadow);
+    }
+    .whattheduck-arch-row td {
+        min-width: 0;
+        border: none !important;
+    }
+    .whattheduck-arch-row td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 0.25rem;
+        color: var(--text-soft);
+        font-size: 0.85rem;
+    }
+    .whattheduck-arch-row td:first-child {
+        grid-column: 1 / 3;
+    }
+    .whattheduck-arch-row td:nth-child(2) {
+        grid-column: 1 / -1;
+    }
+    .whattheduck-arch-row td:nth-child(4) {
+        grid-column: 2 / -1;
+    }
+    .whattheduck-arch-row .wtd-arch-remove-cell {
+        grid-column: 3;
+        grid-row: 1;
+        align-self: center;
+    }
+    .whattheduck-arch-row .wtd-arch-remove-cell::before {
+        display: none;
+    }
 }

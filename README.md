@@ -16,6 +16,12 @@ If every selected model has the same single linked preset, the picker preselects
 
 This updates the same per-user **Linked Preset** setting as the model metadata editor, replacing existing links for the selection. SwarmUI automatically activates linked presets when selecting checkpoints or LoRAs. Other model types can store links, but SwarmUI does not automatically activate them.
 
+### Model Auto-Folders
+
+In WhatTheDuck settings, map model architectures to checkpoint and LoRA subfolders. Each mapping has a **Base folder** choice: **Stable-Diffusion** (the configured checkpoint location, the default for existing mappings) or **diffusion_models** under SwarmUI's configured download model root. The checkpoint subfolder is relative to that base; LoRA subfolders remain relative to the LoRA location.
+
+For example, select `diffusion_models` with checkpoint folder `flux` to save matching models under `diffusion_models/flux`. Safetensors downloads honor the selected base. GGUF downloads always use SwarmUI’s core downloader and its normal destination rules; the base folder setting does not apply to them. Downloads started from a mapping keep that destination when retried. Leave a checkpoint or LoRA folder unset to skip automatic routing for that kind of model.
+
 ### Keyboard Navigation
 
 Adds keyboard shortcuts for image navigation and actions:

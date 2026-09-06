@@ -6,7 +6,11 @@
  * Model Type are auto-selected in the downloader.
  */
 
+export type ModelBaseFolder = "Stable-Diffusion" | "diffusion_models";
+
 export interface ArchFolderMapping {
+    /** Checkpoint base directory, supplied by normalization for legacy settings. */
+    baseFolder: ModelBaseFolder;
     /** SwarmUI compat-class IDs, all mapping to the same folders. */
     architectures: string[];
     checkpointFolder: string;
@@ -78,7 +82,15 @@ export const normalizeMappings = (raw: unknown): ArchFolderMapping[] => {
         for (const arch of architectures) {
             claimedKeys.add(arch.toLowerCase());
         }
-        result.push({ architectures, checkpointFolder, loraFolder });
+        result.push({
+            architectures,
+            baseFolder:
+                rec.baseFolder === "diffusion_models"
+                    ? "diffusion_models"
+                    : "Stable-Diffusion",
+            checkpointFolder,
+            loraFolder,
+        });
     }
     return result;
 };
@@ -87,6 +99,7 @@ export const normalizeMappings = (raw: unknown): ArchFolderMapping[] => {
 export interface FolderMatch {
     folder: string;
     modelType: "Stable-Diffusion" | "LoRA";
+    baseFolder?: ModelBaseFolder;
 }
 
 /**
@@ -118,6 +131,9 @@ export const folderForDetection = (
             return {
                 folder,
                 modelType: detection.isLora ? "LoRA" : "Stable-Diffusion",
+                ...(!detection.isLora
+                    ? { baseFolder: mapping.baseFolder }
+                    : {}),
             };
         }
     }
@@ -222,11 +238,13 @@ export const patchDownloader = (
     getMappings: () => ArchFolderMapping[],
     detect: DetectRequester,
     debounceMs = 500,
-): void => {
+): ((url: string, type: string) => ModelBaseFolder | null) => {
+    let selected: { url: string; baseFolder: ModelBaseFolder } | null = null;
     // Monotonic sequence: only the latest URL's detection may touch the UI.
     let seq = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
     const runDetect = (url: string): void => {
+        selected = null;
         const mySeq = ++seq;
         detect(url, (detection) => {
             if (mySeq !== seq || !detection) {
@@ -236,6 +254,9 @@ export const patchDownloader = (
             if (!match || downloader.url.value !== url) {
                 return;
             }
+            selected = match.baseFolder
+                ? { url, baseFolder: match.baseFolder }
+                : null;
             downloader.type.value = match.modelType;
             applyFolderSelection(downloader.folders, match.folder);
         });
@@ -243,12 +264,13 @@ export const patchDownloader = (
 
     const originalUrlInput = downloader.urlInput.bind(downloader);
     downloader.urlInput = () => {
-        originalUrlInput();
+        selected = null;
         seq++;
         if (timer) {
             clearTimeout(timer);
             timer = null;
         }
+        originalUrlInput();
         // Read AFTER the core handler: it may rewrite the input value.
         const url = downloader.url.value.trim();
         if (!shouldDetectUrl(url)) {
@@ -298,6 +320,81 @@ export const patchDownloader = (
             delayedCallback,
         );
     };
+    return (url, type) =>
+        type === "Stable-Diffusion" && selected?.url === url
+            ? selected.baseFolder
+            : null;
+};
+
+/** A download card retains its destination when retried after the form changes. */
+export interface DownloadCardLike {
+    url: string;
+    type: string;
+    download(): void;
+}
+
+export type DownloadRequest = typeof makeWSRequest;
+
+/** Core Civitai URLs carry the file format in a #.gguf marker. */
+const isGgufDownload = (url: string): boolean => {
+    try {
+        const parsed = new URL(url);
+        return (
+            parsed.pathname.toLowerCase().endsWith(".gguf") ||
+            parsed.hash.toLowerCase() === "#.gguf"
+        );
+    } catch {
+        return false;
+    }
+};
+
+/** Scope routing to the core download card and snapshot its base folder for retries. */
+export const patchDownloadRequests = (
+    host: { makeWSRequest: DownloadRequest },
+    prototype: DownloadCardLike,
+    getBaseFolder: (url: string, type: string) => ModelBaseFolder | null,
+): void => {
+    const destinations = new WeakMap<
+        DownloadCardLike,
+        ModelBaseFolder | null
+    >();
+    let active: { card: DownloadCardLike; baseFolder: ModelBaseFolder } | null =
+        null;
+    const originalDownload = prototype.download;
+    prototype.download = function () {
+        if (!destinations.has(this)) {
+            destinations.set(
+                this,
+                isGgufDownload(this.url)
+                    ? null
+                    : getBaseFolder(this.url, this.type),
+            );
+        }
+        const previous = active;
+        const baseFolder = destinations.get(this);
+        active = baseFolder ? { card: this, baseFolder } : null;
+        try {
+            originalDownload.call(this);
+        } finally {
+            active = previous;
+        }
+    };
+    const originalRequest = host.makeWSRequest;
+    host.makeWSRequest = (endpoint, data, ...callbacks) => {
+        if (
+            endpoint === "DoModelDownloadWS" &&
+            active &&
+            data.url === active.card.url &&
+            data.type === "Stable-Diffusion"
+        ) {
+            return originalRequest(
+                "WhatTheDuckDownloadModelWS",
+                { ...data, baseFolder: active.baseFolder },
+                ...callbacks,
+            );
+        }
+        return originalRequest(endpoint, data, ...callbacks);
+    };
 };
 
 // --- Mutable module state ----------------------------------------------------
@@ -343,7 +440,21 @@ const init = (): void => {
     ) {
         return;
     }
-    patchDownloader(modelDownloader, () => mappings, requestDetection);
+    const getBaseFolder = patchDownloader(
+        modelDownloader,
+        () => mappings,
+        requestDetection,
+    );
+    if (
+        typeof ActiveModelDownload !== "undefined" &&
+        typeof makeWSRequest === "function"
+    ) {
+        patchDownloadRequests(
+            window,
+            ActiveModelDownload.prototype,
+            getBaseFolder,
+        );
+    }
 };
 
 export const archFolders = {

@@ -180,6 +180,7 @@ describe("settings pure renderers", () => {
                 archFolderMappings: [
                     {
                         architectures: ["Anima", "Pony"],
+                        baseFolder: "Stable-Diffusion",
                         checkpointFolder: "anima",
                         loraFolder: "anima/loras",
                     },
@@ -277,16 +278,18 @@ describe("settings pure renderers", () => {
 
     describe("arch mapping rows", () => {
         it("round-trips rows through the DOM via readArchMappings", () => {
-            const wrapper = document.createElement("div");
+            const wrapper = document.createElement("tbody");
             wrapper.innerHTML = renderArchMappingRows(
                 [
                     {
                         architectures: ["Anima", "SDXL 1.0"],
+                        baseFolder: "Stable-Diffusion",
                         checkpointFolder: "anima",
                         loraFolder: "anima",
                     },
                     {
                         architectures: ["Pony"],
+                        baseFolder: "Stable-Diffusion",
                         checkpointFolder: "",
                         loraFolder: "pony",
                     },
@@ -297,33 +300,65 @@ describe("settings pure renderers", () => {
             expect(readArchMappings(wrapper)).toEqual([
                 {
                     architectures: ["Anima", "SDXL 1.0"],
+                    baseFolder: "Stable-Diffusion",
                     checkpointFolder: "anima",
                     loraFolder: "anima",
                 },
                 {
                     architectures: ["Pony"],
+                    baseFolder: "Stable-Diffusion",
                     checkpointFolder: "",
                     loraFolder: "pony",
                 },
             ]);
         });
 
+        it("offers exactly two base folders and saves changes to the selection", () => {
+            const wrapper = document.createElement("tbody");
+            wrapper.innerHTML = renderArchMappingRows(
+                [
+                    {
+                        architectures: ["Anima"],
+                        checkpointFolder: "anima",
+                        loraFolder: "anima",
+                        baseFolder: "diffusion_models",
+                    },
+                ],
+                ROW_OPTIONS,
+            );
+            const select =
+                wrapper.querySelector<HTMLSelectElement>(".wtd-arch-base");
+            expect(
+                Array.from(select?.options ?? []).map((option) => option.value),
+            ).toEqual(["Stable-Diffusion", "diffusion_models"]);
+            expect(readArchMappings(wrapper)[0].baseFolder).toBe(
+                "diffusion_models",
+            );
+            if (select) select.value = "Stable-Diffusion";
+            expect(readArchMappings(wrapper)[0].baseFolder).toBe(
+                "Stable-Diffusion",
+            );
+        });
+
         it("drops incomplete rows when reading back", () => {
-            const wrapper = document.createElement("div");
+            const wrapper = document.createElement("tbody");
             wrapper.innerHTML = renderArchMappingRows(
                 [
                     {
                         architectures: [],
+                        baseFolder: "Stable-Diffusion",
                         checkpointFolder: "x",
                         loraFolder: "",
                     },
                     {
                         architectures: ["Anima"],
+                        baseFolder: "Stable-Diffusion",
                         checkpointFolder: "",
                         loraFolder: "",
                     },
                     {
                         architectures: ["Pony"],
+                        baseFolder: "Stable-Diffusion",
                         checkpointFolder: "pony",
                         loraFolder: "",
                     },
@@ -334,6 +369,7 @@ describe("settings pure renderers", () => {
             expect(readArchMappings(wrapper)).toEqual([
                 {
                     architectures: ["Pony"],
+                    baseFolder: "Stable-Diffusion",
                     checkpointFolder: "pony",
                     loraFolder: "",
                 },

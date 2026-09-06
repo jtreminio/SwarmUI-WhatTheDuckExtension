@@ -50,26 +50,11 @@ public static class ArchDetectionApi
             {
                 return failed("URL must start with http:// or https://");
             }
-            if (url.StartsWith("https://civitai.com/"))
+            var authenticated = ModelDownloadAuth.Prepare(url, provider => session.User.GetGenericData(provider, "key"));
+            using HttpRequestMessage request = new(HttpMethod.Get, authenticated.Url);
+            foreach (var (key, value) in authenticated.Headers)
             {
-                url = $"https://civitai.red/{url["https://civitai.com/".Length..]}";
-            }
-            if (url.StartsWith("https://civitai.red/"))
-            {
-                string civitaiApiKey = session.User.GetGenericData("civitai_api", "key");
-                if (!string.IsNullOrEmpty(civitaiApiKey) && !url.Contains("?token=") && !url.Contains("&token="))
-                {
-                    url += (url.Contains('?') ? "&token=" : "?token=") + ModelsAPI.TokenTextLimiter.TrimToMatches(civitaiApiKey);
-                }
-            }
-            using HttpRequestMessage request = new(HttpMethod.Get, url);
-            if (url.StartsWith("https://huggingface.co/"))
-            {
-                string hfApiKey = session.User.GetGenericData("huggingface_api", "key");
-                if (!string.IsNullOrEmpty(hfApiKey))
-                {
-                    request.Headers.Add("Authorization", $"Bearer {ModelsAPI.TokenTextLimiter.TrimToMatches(hfApiKey)}");
-                }
+                request.Headers.Add(key, value);
             }
             using HttpResponseMessage response = await Utilities.UtilWebClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, Program.GlobalProgramCancel);
             if (!response.IsSuccessStatusCode)
@@ -129,7 +114,7 @@ public static class ArchDetectionApi
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {
-            Logs.Debug($"WhatTheDuck: arch detection request failed for '{url}': {ex.Message}");
+            Logs.Debug($"WhatTheDuck: arch detection request failed ({ex.GetType().Name}).");
             return failed($"Could not fetch the remote file: {ex.Message}");
         }
         finally
