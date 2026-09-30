@@ -182,6 +182,14 @@ export function enableModelMultiSelect(wrapper: WtdModelBrowser): void {
     }
     patched.add(browser);
     browser.allowMultiSelect = true;
+    wrapper.modelDescribeCallbacks.push((description) => {
+        for (const button of description.buttons) {
+            if (button.label === "Delete Model") {
+                // Core exits multi-select after bulk actions named "Delete".
+                button.label = "Delete";
+            }
+        }
+    });
     const originalLabels = browser.getCommonMultiSelectActionLabels;
     browser.getCommonMultiSelectActionLabels = function () {
         const labels = originalLabels.call(this);

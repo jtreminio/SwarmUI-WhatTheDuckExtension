@@ -50,6 +50,9 @@ declare function genericRequest<T = unknown>(
 
 interface WtdModelBrowser {
     subType: string;
+    modelDescribeCallbacks: ((description: {
+        buttons: { label: string }[];
+    }) => void)[];
     browser: {
         allowMultiSelect: boolean;
         contentDiv: HTMLElement;

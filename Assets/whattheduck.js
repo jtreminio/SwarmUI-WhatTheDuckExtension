@@ -556,6 +556,13 @@
     }
     patched.add(browser);
     browser.allowMultiSelect = true;
+    wrapper.modelDescribeCallbacks.push((description) => {
+      for (const button of description.buttons) {
+        if (button.label === "Delete Model") {
+          button.label = "Delete";
+        }
+      }
+    });
     const originalLabels = browser.getCommonMultiSelectActionLabels;
     browser.getCommonMultiSelectActionLabels = function() {
       const labels = originalLabels.call(this);

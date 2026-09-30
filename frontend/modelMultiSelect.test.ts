@@ -124,7 +124,11 @@ beforeEach(() => {
     browser.multiSelectToggleButton.addEventListener("click", () => {
         browser.setMultiSelectActive(!browser.multiSelectActive);
     });
-    wrapper = { subType: "Stable-Diffusion", browser };
+    wrapper = {
+        subType: "Stable-Diffusion",
+        browser,
+        modelDescribeCallbacks: [],
+    };
 });
 
 afterEach(() => {
@@ -345,6 +349,36 @@ describeWithSwarm("C over models (SwarmUI integration)", () => {
 });
 
 describeWithSwarm("model multi-select (SwarmUI integration)", () => {
+    it("renames Delete Model so the native bulk action exits multi-select", () => {
+        const deleteModel = jest.fn();
+        Object.assign(browser, {
+            describe: () => {
+                const description = {
+                    buttons: [
+                        {
+                            label: "Delete Model",
+                            can_multi: true,
+                            onclick: deleteModel,
+                        },
+                    ],
+                };
+                for (const callback of wrapper.modelDescribeCallbacks) {
+                    callback(description);
+                }
+                return description;
+            },
+        });
+        selectModels();
+        expect(browser.getCommonMultiSelectActionLabels()).toContain("Delete");
+        expect(browser.getCommonMultiSelectActionLabels()).not.toContain(
+            "Delete Model",
+        );
+        browser.runMultiSelectAction("Delete");
+        expect(deleteModel).toHaveBeenCalledTimes(2);
+        expect(browser.multiSelectActive).toBe(false);
+        expect(browser.getMultiSelectedFiles()).toHaveLength(0);
+        expect(browser.multiSelectActionSelect.style.display).toBe("none");
+    });
     it.each([
         { a: ["Portrait"], b: ["Portrait"], expected: "Portrait" },
         { a: [], b: [], expected: "" },
