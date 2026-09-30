@@ -1,5 +1,6 @@
 import { archFolders } from "./archFolders";
 import { comfyWorkflowSave } from "./comfyWorkflowSave";
+import { modelHashOverride } from "./modelHashOverride";
 import { modelMultiSelect } from "./modelMultiSelect";
 import { promptEdit } from "./promptEdit";
 import { redo } from "./redo";
@@ -13,4 +14,5 @@ document.addEventListener("DOMContentLoaded", () => {
     archFolders.init();
     comfyWorkflowSave.init();
     modelMultiSelect.init();
+    modelHashOverride.init();
 });

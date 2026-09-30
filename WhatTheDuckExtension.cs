@@ -44,12 +44,20 @@ public class WhatTheDuckExtension : Extension
 
         PromptVariableTrimming.Register();
 
+        API.RegisterAPICall(ModelHashOverrides.WhatTheDuckGetModelHashOverride, false, Permissions.EditModelMetadata);
+        API.RegisterAPICall(ModelHashOverrides.WhatTheDuckSaveModelHashOverride, true, Permissions.EditModelMetadata);
         API.RegisterAPICall(WhatTheDuckGetSettings, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(WhatTheDuckSaveSettings, true, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(PromptEditApi.WhatTheDuckEditPrompt, true, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(ModelDownloadApi.WhatTheDuckDownloadModelWS, true, Permissions.DownloadModels);
         API.RegisterAPICall(ArchDetectionApi.WhatTheDuckDetectModelArch, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(ComfyWorkflowSaveApi.WhatTheDuckSaveComfyWorkflow, true, Permissions.FundamentalGenerateTabAccess);
+    }
+
+    public override void OnPreLaunch()
+    {
+        // Run after extensions register their metadata model tracking in OnInit.
+        ModelHashOverrides.Register();
     }
 
     #region Settings Management

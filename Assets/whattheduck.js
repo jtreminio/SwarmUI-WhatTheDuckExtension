@@ -402,6 +402,143 @@
     init: init2
   };
 
+  // frontend/modelHashOverride.ts
+  var FIELD_ID = "wtd_model_override_hash";
+  var started3 = false;
+  function initModelHashOverride() {
+    const modal = document.getElementById("edit_model_modal");
+    const technical = document.getElementById("edit_model_technical_data");
+    if (started3 || !modal || !technical || typeof editModel !== "function" || typeof save_edit_model !== "function") {
+      return;
+    }
+    started3 = true;
+    const row = document.createElement("div");
+    row.innerHTML = `<label for="${FIELD_ID}">Override hash:</label>
+        <input id="${FIELD_ID}" type="text" class="modal_text_extra" autocomplete="off" spellcheck="false" maxlength="66" placeholder="Use native hash" />
+        <div class="small">Used in newly generated image/video metadata. Stored separately by WhatTheDuck. Leave blank to use the native hash.</div>
+        <div role="status"></div>`;
+    technical.parentElement?.insertAdjacentElement("afterend", row);
+    const field = row.querySelector("input");
+    const status = row.querySelector('[role="status"]');
+    const originalEdit = editModel;
+    const originalSave = save_edit_model;
+    let current = null;
+    const nativeValues = () => JSON.stringify(
+      Array.from(
+        modal.querySelectorAll("input, select, textarea")
+      ).filter((input) => input.id !== FIELD_ID).map((input) => [
+        input.id,
+        input.value,
+        input instanceof HTMLInputElement ? input.checked : false
+      ])
+    );
+    const events = $("#edit_model_modal");
+    events.on("shown.bs.modal", () => {
+      if (current) current.nativeValues = nativeValues();
+    });
+    events.on("hidden.bs.modal", () => {
+      current = null;
+    });
+    globalThis.editModel = (model, browser) => {
+      if (!model) {
+        originalEdit(model, browser);
+        return;
+      }
+      const editing = {
+        model: model.name,
+        subtype: browser.subType,
+        loaded: false,
+        saving: false,
+        hash: "",
+        nativeValues: null
+      };
+      current = editing;
+      field.value = "";
+      field.disabled = true;
+      status.textContent = "Loading override…";
+      originalEdit(model, browser);
+      genericRequest(
+        "WhatTheDuckGetModelHashOverride",
+        { model: editing.model, subtype: editing.subtype },
+        (data) => {
+          if (current !== editing) return;
+          if (!data.success || data.error) {
+            status.textContent = data.error || "Could not load override.";
+            return;
+          }
+          field.value = data.hash ?? "";
+          editing.hash = field.value;
+          editing.loaded = true;
+          field.disabled = false;
+          status.textContent = "";
+        },
+        0,
+        (message) => {
+          if (current === editing) status.textContent = message;
+        }
+      );
+    };
+    globalThis.save_edit_model = () => {
+      const editing = current;
+      if (!editing) {
+        originalSave();
+        return;
+      }
+      if (!editing.loaded) {
+        showError(
+          "Wait for the override to load. If loading failed, reopen Edit Metadata to retry."
+        );
+        return;
+      }
+      if (editing.saving) return;
+      const hash = field.value.trim();
+      if (hash && !/^(?:0x)?[a-f0-9]{1,64}$/i.test(hash)) {
+        showError(
+          "Override hash must contain 1–64 hexadecimal characters, optionally prefixed with 0x."
+        );
+        return;
+      }
+      const finish = () => {
+        if (current !== editing) return;
+        if (editing.nativeValues === nativeValues()) {
+          $("#edit_model_modal").modal("hide");
+        } else {
+          originalSave();
+        }
+      };
+      if (hash === editing.hash) {
+        finish();
+        return;
+      }
+      editing.saving = true;
+      field.disabled = true;
+      status.textContent = "Saving override…";
+      const failed = (message) => {
+        if (current !== editing) return;
+        editing.saving = false;
+        field.disabled = false;
+        status.textContent = message;
+        showError(message);
+      };
+      genericRequest(
+        "WhatTheDuckSaveModelHashOverride",
+        { model: editing.model, subtype: editing.subtype, hash },
+        (data) => {
+          if (!data.success || data.error) {
+            failed(data.error || "Could not save override.");
+            return;
+          }
+          editing.hash = hash;
+          editing.saving = false;
+          finish();
+        },
+        0,
+        failed
+      );
+    };
+  }
+  var modelHashOverride = { init: initModelHashOverride };
+
   // frontend/modelMultiSelect.ts
   var ACTION = "Set Linked Preset";
   var MODAL_ID = "wtd-model-preset-modal";
@@ -596,7 +733,7 @@
   var SAVE_ID = "wtd_prompt_edit_save";
   var EDIT_BTN_CLASS = "wtd-prompt-edit-button";
   var EDIT_BTN_MARK = "data-wtd-edit-button";
-  var started3 = false;
+  var started4 = false;
   var getTextarea = () => document.getElementById(TEXTAREA_ID);
   var showModal = () => {
     if (typeof $ === "function") {
@@ -743,10 +880,10 @@
     modal.querySelector('[data-bs-dismiss="modal"]')?.addEventListener("click", () => hideModal());
   }
   var init3 = () => {
-    if (started3) {
+    if (started4) {
       return;
     }
-    started3 = true;
+    started4 = true;
     buildModal();
     const observer = new MutationObserver(() => injectEditButtons(document));
     observer.observe(document.body, { childList: true, subtree: true });
@@ -990,12 +1127,12 @@
     }
     syncPicker(picker);
   };
-  var started4 = false;
+  var started5 = false;
   var initArchPickers = (root) => {
-    if (started4) {
+    if (started5) {
       return;
     }
-    started4 = true;
+    started5 = true;
     root.addEventListener("click", (e) => {
       const target = e.target;
       if (!target) {
@@ -1839,6 +1976,7 @@
     archFolders.init();
     comfyWorkflowSave.init();
     modelMultiSelect.init();
+    modelHashOverride.init();
   });
 })();
 //# sourceMappingURL=whattheduck.js.map

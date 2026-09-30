@@ -6,6 +6,14 @@ Use at your own peril!
 
 ## Features
 
+### Model Hash Overrides
+
+Open a model's **Edit Metadata** modal, enter an **Override hash**, and click **Save**. Future generated images and videos use that value in `sui_models` metadata when SwarmUI's **Image Metadata Include Model Hash** setting is enabled. Hashes may contain 1–64 hexadecimal characters, optionally prefixed with `0x`; their case and prefix are preserved. Clear the field and save to restore the native hash.
+
+Overrides are shared across users and stored in one file, `<DataDir>/WhatTheDuck/ModelHashOverrides.json` (`Data/` is SwarmUI's default data directory). Entries are keyed by model subtype and relative path, so a checkpoint and LoRA with the same name remain separate. Moving or renaming a model requires setting its override again. Editing overrides requires SwarmUI's model-metadata permission.
+
+Saving only an override does not rewrite the model file or its `.swarm.json` sidecar. Other edits in the modal still use SwarmUI's normal metadata save. Existing outputs are unchanged. The overrides apply to checkpoints, refiners, video models, LoRAs, embeddings, and other models tracked in SwarmUI's output metadata.
+
 ### Model Multi-Select and Preset Links
 
 With WhatTheDuck's **Keyboard Navigation** enabled, hover anywhere on a model card and press **C** to enter multi-select and toggle that model's selection. Repeat over other models to add them; press **C** again over a selected model to remove it. Over images, **C** retains its comparison shortcut. Press **Esc** to clear model and image selections and exit multi-select. An open modal or dropdown closes first.
