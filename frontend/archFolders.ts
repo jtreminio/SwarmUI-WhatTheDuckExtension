@@ -224,6 +224,8 @@ export interface DownloaderLike {
         identifier?: string,
         validateSafe?: boolean,
         delayedCallback?: CivitaiDelayedCallback | null,
+        preloadedData?: unknown,
+        fileId?: string | null,
     ): void;
 }
 
@@ -290,6 +292,8 @@ export const patchDownloader = (
         identifier,
         validateSafe,
         delayedCallback,
+        preloadedData,
+        fileId,
     ) => {
         const wrapped: CivitaiMetadataCallback = (...args) => {
             callback(...args);
@@ -318,6 +322,8 @@ export const patchDownloader = (
             identifier,
             validateSafe,
             delayedCallback,
+            preloadedData,
+            fileId,
         );
     };
     return (url, type) =>

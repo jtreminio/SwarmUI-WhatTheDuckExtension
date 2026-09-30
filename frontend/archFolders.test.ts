@@ -565,6 +565,63 @@ describe("patchDownloader", () => {
         expect(fake.folders.value).toBe("flux");
     });
 
+    it("preserves Civitai file selection and probes the selected file", () => {
+        const fake = makeFake();
+        const preloadedData = {
+            name: "Anima Delta Mix",
+            modelVersions: [{ id: 3309681 }],
+        };
+        const selectedUrl = `${CIVITAI_URL}?fileId=3194901`;
+        const resolver = jest.fn<DownloaderLike["getCivitaiMetadata"]>(
+            (
+                _id,
+                _versId,
+                callback,
+                _identifier,
+                _validateSafe,
+                _delayed,
+                data,
+                fileId,
+            ) => {
+                expect(data).toBe(preloadedData);
+                const url = `${CIVITAI_URL}?fileId=${fileId ?? "3194899"}`;
+                callback(
+                    { name: "Anima Delta Mix" },
+                    { baseModel: "Anima" },
+                    {},
+                    "Stable-Diffusion",
+                    url,
+                    null,
+                    [],
+                    null,
+                );
+            },
+        );
+        fake.downloader.getCivitaiMetadata = resolver;
+        patchDownloader(
+            fake.downloader,
+            () => [],
+            (url) => {
+                fake.detectCalls.push(url);
+            },
+        );
+        fake.downloader.getCivitaiMetadata(
+            "2913466",
+            "3309681",
+            (_rawData, _rawVersion, _metadata, _type, url) => {
+                fake.downloader.url.value = url ?? "";
+            },
+            "",
+            true,
+            () => {},
+            preloadedData,
+            "3194901",
+        );
+        expect(resolver).toHaveBeenCalledTimes(1);
+        expect(fake.downloader.url.value).toBe(selectedUrl);
+        expect(fake.detectCalls).toEqual([selectedUrl]);
+    });
+
     it("does not detect from civitai metadata flows without a delayedCallback (non-download pages)", () => {
         const fake = makeFake();
         fake.downloader.getCivitaiMetadata = ((

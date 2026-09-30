@@ -141,7 +141,7 @@
       }, debounceMs);
     };
     const originalGetMetadata = downloader.getCivitaiMetadata.bind(downloader);
-    downloader.getCivitaiMetadata = (id, versId, callback, identifier, validateSafe, delayedCallback) => {
+    downloader.getCivitaiMetadata = (id, versId, callback, identifier, validateSafe, delayedCallback, preloadedData, fileId) => {
       const wrapped = (...args) => {
         callback(...args);
         const [rawData, , , , downloadUrl] = args;
@@ -159,7 +159,9 @@
         wrapped,
         identifier,
         validateSafe,
-        delayedCallback
+        delayedCallback,
+        preloadedData,
+        fileId
       );
     };
     return (url, type) => type === "Stable-Diffusion" && selected?.url === url ? selected.baseFolder : null;

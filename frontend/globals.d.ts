@@ -32,6 +32,8 @@ declare var modelDownloader:
               identifier?: string,
               validateSafe?: boolean,
               delayedCallback?: CivitaiDelayedCallback | null,
+              preloadedData?: unknown,
+              fileId?: string | null,
           ): void;
       }
     | undefined;
