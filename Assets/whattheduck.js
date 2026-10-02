@@ -895,6 +895,29 @@
     init: init3
   };
 
+  // frontend/promptResize.ts
+  var started5 = false;
+  function initPromptResize() {
+    const prompt = document.getElementById("alt_prompt_textbox");
+    if (started5 || !prompt || typeof dynamicSizeTextBox !== "function") return;
+    started5 = true;
+    const original = dynamicSizeTextBox;
+    globalThis.dynamicSizeTextBox = function(element, ...args) {
+      if (element !== prompt) {
+        original.call(this, element, ...args);
+        return;
+      }
+      const height = element.style.height;
+      const manuallyResized = height.endsWith("px") && Number.parseFloat(height) > 0;
+      element.style.minHeight = "";
+      original.call(this, element, ...args);
+      element.style.minHeight = element.style.height;
+      if (manuallyResized) element.style.height = height;
+    };
+    globalThis.dynamicSizeTextBox(prompt);
+  }
+  var promptResize = { init: initPromptResize };
+
   // frontend/redo.ts
   var BUTTON_NAME = "Redo";
   var BUTTON_TITLE2 = "Generate a new image with a fresh random seed, reusing every other setting from this image (including the already-finalized prompt — wildcards and MagicPrompt are not re-rolled).";
@@ -1140,12 +1163,12 @@
     }
     syncPicker(picker);
   };
-  var started5 = false;
+  var started6 = false;
   var initArchPickers = (root) => {
-    if (started5) {
+    if (started6) {
       return;
     }
-    started5 = true;
+    started6 = true;
     root.addEventListener("click", (e) => {
       const target = e.target;
       if (!target) {
@@ -1986,6 +2009,7 @@
   document.addEventListener("DOMContentLoaded", () => {
     whatTheDuck.init();
     promptEdit.init();
+    promptResize.init();
     archFolders.init();
     comfyWorkflowSave.init();
     modelMultiSelect.init();

@@ -60,6 +60,11 @@
     pointer-events: none;
 }
 
+/* Generate-tab prompt resizing */
+#alt_prompt_textbox {
+    resize: vertical;
+}
+
 /* Edit Prompt feature */
 .wtd-prompt-edit-button {
     /* The copy button is float:right; floating this right too (while staying after
