@@ -923,7 +923,7 @@
       return null;
     }
   };
-  var buildRedoInput = (meta) => {
+  var buildRedoInput = (meta, preserveMagicPrompt = false) => {
     const params = meta.sui_image_params ?? {};
     const input = {};
     for (const [key, value] of Object.entries(params)) {
@@ -943,6 +943,14 @@
     if (typeof extra.original_negativeprompt === "string") {
       extraMetadata.original_negativeprompt = extra.original_negativeprompt;
     }
+    if (preserveMagicPrompt && typeof input.prompt === "string") {
+      extraMetadata.mp_is_refining = true;
+      extraMetadata.mp_refined_prompt = input.prompt;
+      const variables = extra.mp_variables;
+      if (variables && typeof variables === "object" && !Array.isArray(variables)) {
+        extraMetadata.mp_refined_variables = JSON.stringify(variables);
+      }
+    }
     if (Object.keys(extraMetadata).length > 0) {
       input.extra_metadata = extraMetadata;
     }
@@ -956,7 +964,10 @@
       showError("No image parameters available to redo.");
       return;
     }
-    const redoInput = buildRedoInput(meta);
+    const redoInput = buildRedoInput(
+      meta,
+      typeof magicPromptRefineImage === "function"
+    );
     mainGenHandler.doGenerate(
       {},
       {},

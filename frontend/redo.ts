@@ -41,6 +41,7 @@ export const parseSwarmMetadata = (
 
 export const buildRedoInput = (
     meta: SwarmMetadata,
+    preserveMagicPrompt = false,
 ): Record<string, unknown> => {
     const params = meta.sui_image_params ?? {};
     const input: Record<string, unknown> = {};
@@ -62,6 +63,21 @@ export const buildRedoInput = (
     if (typeof extra.original_negativeprompt === "string") {
         extraMetadata.original_negativeprompt = extra.original_negativeprompt;
     }
+    if (preserveMagicPrompt && typeof input.prompt === "string") {
+        // Use Refine Img's replay protocol to skip another MagicPrompt pass.
+        extraMetadata.mp_is_refining = true;
+        extraMetadata.mp_refined_prompt = input.prompt;
+        const variables = extra.mp_variables;
+        if (
+            variables &&
+            typeof variables === "object" &&
+            !Array.isArray(variables)
+        ) {
+            // Swarm's API converts metadata objects to strings. MagicPrompt
+            // restores this JSON as a variable map after prompt parsing.
+            extraMetadata.mp_refined_variables = JSON.stringify(variables);
+        }
+    }
     if (Object.keys(extraMetadata).length > 0) {
         input.extra_metadata = extraMetadata;
     }
@@ -76,7 +92,10 @@ export const onRedoClick = (): void => {
         showError("No image parameters available to redo.");
         return;
     }
-    const redoInput = buildRedoInput(meta);
+    const redoInput = buildRedoInput(
+        meta,
+        typeof magicPromptRefineImage === "function",
+    );
     mainGenHandler.doGenerate(
         {},
         {},

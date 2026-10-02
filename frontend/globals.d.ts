@@ -115,6 +115,9 @@ declare const mainGenHandler: {
     ): void;
 };
 
+/** Optional MagicPrompt integration, available when its Refine Img button is loaded. */
+declare function magicPromptRefineImage(src: string): void;
+
 declare function registerMediaButton(
     name: string,
     action: (src: string) => void,

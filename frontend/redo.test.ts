@@ -57,6 +57,7 @@ describe("redo", () => {
             "mainGenHandler",
             "registerMediaButton",
             "showError",
+            "magicPromptRefineImage",
         ]) {
             delete g[key];
         }
@@ -154,6 +155,87 @@ describe("redo", () => {
                 sui_extra_data: { generation_time: "1.23 seconds" },
             });
             expect("extra_metadata" in input).toBe(false);
+        });
+
+        it("preserves MagicPrompt variables as metadata without changing generation settings", () => {
+            const variables = {
+                prompt: "Source MP Prompt",
+                character: "A woman in a red coat",
+                literal: "<random:red|blue> >:( <8)",
+                unicode: '雪\n"quoted" \\ text',
+                empty: "",
+            };
+            const meta = {
+                sui_image_params: {
+                    prompt: "A woman in a red coat",
+                    negativeprompt: "blurry",
+                    seed: 123,
+                    mppostfilter: '"red=blue"',
+                    disablellmrequest: true,
+                },
+                sui_extra_data: {
+                    original_prompt: "<mpprompt:<var:character>>",
+                    original_negativeprompt: "<wildcard:negative>",
+                    mp_variables: variables,
+                    generation_time: "1.23 seconds",
+                },
+            };
+            const withoutMagicPrompt = redoModule.buildRedoInput(meta);
+            const input = redoModule.buildRedoInput(meta, true);
+            // Exercise the JSON serialization used by the generation request.
+            const extra = JSON.parse(JSON.stringify(input.extra_metadata));
+
+            expect(extra).toEqual({
+                original_prompt: meta.sui_extra_data.original_prompt,
+                original_negativeprompt:
+                    meta.sui_extra_data.original_negativeprompt,
+                mp_is_refining: true,
+                mp_refined_prompt: meta.sui_image_params.prompt,
+                mp_refined_variables: JSON.stringify(variables),
+            });
+            expect(JSON.parse(extra.mp_refined_variables)).toEqual(variables);
+            expect({ ...input, extra_metadata: undefined }).toEqual({
+                ...withoutMagicPrompt,
+                extra_metadata: undefined,
+            });
+            expect(meta.sui_extra_data.mp_variables).toEqual(variables);
+            expect(meta.sui_image_params.seed).toBe(123);
+        });
+
+        it("preserves an empty MagicPrompt variable map", () => {
+            const input = redoModule.buildRedoInput(
+                {
+                    sui_image_params: { prompt: "A sunset" },
+                    sui_extra_data: { mp_variables: {} },
+                },
+                true,
+            );
+            expect(input.extra_metadata).toEqual({
+                mp_is_refining: true,
+                mp_refined_prompt: "A sunset",
+                mp_refined_variables: "{}",
+            });
+        });
+
+        it.each([
+            undefined,
+            null,
+            [],
+            "{}",
+            0,
+            false,
+        ])("replays the finalized prompt without invalid variable metadata (%p)", (variables) => {
+            const input = redoModule.buildRedoInput(
+                {
+                    sui_image_params: { prompt: "A sunset" },
+                    sui_extra_data: { mp_variables: variables },
+                },
+                true,
+            );
+            expect(input.extra_metadata).toEqual({
+                mp_is_refining: true,
+                mp_refined_prompt: "A sunset",
+            });
         });
     });
 
@@ -279,6 +361,51 @@ describe("redo", () => {
             initAndGetAction()("src.png");
 
             expect(doGenerate).toHaveBeenCalledTimes(1);
+        });
+
+        it("uses MagicPrompt's replay protocol when its Refine Img button is loaded", () => {
+            const variables = {
+                prompt: "Stored MP Prompt",
+                character: "A cat",
+            };
+            g.magicPromptRefineImage = jest.fn();
+            g.currentImageHelper = {
+                getCurrentImage: () =>
+                    makeImg(
+                        JSON.stringify({
+                            sui_image_params: { prompt: "A cat", seed: 123 },
+                            sui_extra_data: { mp_variables: variables },
+                        }),
+                    ),
+            };
+            const actualInput: Record<string, unknown> = {
+                prompt: "Current UI prompt",
+                extra_metadata: { mp_refined_variables: "wrong UI variables" },
+            };
+            g.mainGenHandler = {
+                doGenerate: jest.fn(
+                    (
+                        _overrides: unknown,
+                        _preoverrides: unknown,
+                        postCollectRun: (i: Record<string, unknown>) => void,
+                    ) => postCollectRun(actualInput),
+                ),
+            };
+
+            initAndGetAction()("src.png");
+
+            expect(actualInput).toEqual({
+                prompt: "A cat",
+                seed: -1,
+                images: 1,
+                batchsize: 1,
+                extra_metadata: {
+                    mp_is_refining: true,
+                    mp_refined_prompt: "A cat",
+                    mp_refined_variables: JSON.stringify(variables),
+                },
+            });
+            expect(g.magicPromptRefineImage).not.toHaveBeenCalled();
         });
 
         it("shows an error and does not generate when no metadata is available", () => {

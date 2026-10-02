@@ -66,7 +66,7 @@ Redo regenerates the selected image with a brand-new random seed while keeping e
 
 The key difference from "Reuse Parameters": that button loads the *original* prompt back into the prompt box (so wildcards, MagicPrompt LLM expansion, and macros re-roll on the next generation). Redo instead reuses the *already-finalized* prompt verbatim, so those prompt-time randomizers are **not** re-evaluated — you get the exact same prompt that produced the source image, just a different seed.
 
-The original prompt is still preserved: it is recorded as `original_prompt` in the new image's metadata, exactly as the source image had it.
+The original prompt and original negative prompt are preserved in the new image's metadata. When MagicPrompt is loaded, Redo also preserves every stored MagicPrompt variable, including **MP Prompt**, using the same finalized-prompt replay mechanism as MagicPrompt's **Refine Img** button. These variables remain metadata; they are not evaluated again or used to alter generation settings. MagicPrompt post-filters are not applied a second time.
 
 ### Import & Save Comfy Workflow To Server
 
