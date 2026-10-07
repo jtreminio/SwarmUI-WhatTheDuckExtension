@@ -1,5 +1,6 @@
 import { archFolders } from "./archFolders";
 import { comfyWorkflowSave } from "./comfyWorkflowSave";
+import { initMetadataColumnWidth } from "./metadataColumnWidth";
 import { modelHashOverride } from "./modelHashOverride";
 import { modelMultiSelect } from "./modelMultiSelect";
 import { promptEdit } from "./promptEdit";
@@ -10,6 +11,7 @@ import { whatTheDuck } from "./settings";
 redo.init();
 
 document.addEventListener("DOMContentLoaded", () => {
+    initMetadataColumnWidth();
     whatTheDuck.init();
     promptEdit.init();
     promptResize.init();

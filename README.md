@@ -54,6 +54,10 @@ In the comparison modal, number keys (or their Shift symbols) switch the view:
 
 Can be enabled/disabled in the settings panel.
 
+### Metadata Column Width
+
+SwarmUI's Auto metadata layout moves metadata below the image unless more than 480 px remains beside it. In **Tools → WhatTheDuck Settings**, set **Metadata Column Minimum Width** to 160–960 px. Lower values keep metadata beside the image more often. The setting applies to the current page immediately after saving and is shared across users. SwarmUI's forced Side and Bottom modes are unchanged.
+
 ### Prompt Variable Trimming
 
 Adds an opt-in **Trim Prompt Variables** setting. When enabled, values assigned with SwarmUI's `<setvar[...]:...>` prompt tag have leading and trailing whitespace removed after nested prompt tags are resolved. The trimmed value is written back to the current generation's variable dictionary, so both an emitting `<setvar>` and later `<var:...>` references use the same normalized value.

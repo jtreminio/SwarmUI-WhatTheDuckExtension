@@ -134,7 +134,11 @@ declare function getImageFullSrc(src: string | null | undefined): string | null;
 
 declare const currentImageHelper: {
     getCurrentImage(): HTMLImageElement | null;
+    getCurrentImageContainer(): HTMLElement | null;
 };
+
+declare function alignImageDataFormat(): void;
+declare function getUserSetting(id: string, defaultValue?: string): string;
 
 declare function interpretMetadata(
     metadata: string | Uint8Array | number[] | null,

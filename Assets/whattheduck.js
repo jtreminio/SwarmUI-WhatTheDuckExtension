@@ -404,6 +404,84 @@
     init: init2
   };
 
+  // frontend/metadataColumnWidth.ts
+  var DEFAULT_METADATA_COLUMN_MIN_WIDTH = 480;
+  var MIN_METADATA_COLUMN_WIDTH = 160;
+  var MAX_METADATA_COLUMN_WIDTH = 960;
+  var minimumWidth = DEFAULT_METADATA_COLUMN_MIN_WIDTH;
+  var installed = false;
+  var validMetadataColumnWidth = (value) => Number.isInteger(value) && value >= MIN_METADATA_COLUMN_WIDTH && value <= MAX_METADATA_COLUMN_WIDTH;
+  var applyMetadataColumnWidth = (width = minimumWidth) => {
+    const extras = document.querySelector(
+      "#current_image .current-image-extras-wrapper"
+    );
+    if (width === DEFAULT_METADATA_COLUMN_MIN_WIDTH || getUserSetting("ImageMetadataFormat", "auto") !== "auto") {
+      if (extras) {
+        extras.style.minWidth = "";
+      }
+      return;
+    }
+    const imageArea = document.getElementById("current_image");
+    const image = currentImageHelper.getCurrentImage();
+    const imageContainer = currentImageHelper.getCurrentImageContainer();
+    if (!imageArea || !image || !imageContainer || !extras) {
+      return;
+    }
+    const dimensions = image instanceof HTMLVideoElement ? [image.videoWidth, image.videoHeight] : image instanceof HTMLImageElement ? [image.naturalWidth, image.naturalHeight] : [];
+    const [naturalWidth, naturalHeight] = dimensions;
+    if (!naturalWidth || !naturalHeight) {
+      return;
+    }
+    const scale = image.dataset.previewGrow === "true" ? 8 : 1;
+    const imageWidth = naturalWidth * scale;
+    const imageHeight = naturalHeight * scale;
+    const renderedHeight = Math.min(imageHeight, imageArea.offsetHeight);
+    const renderedWidth = Math.min(
+      imageWidth,
+      renderedHeight * (imageWidth / imageHeight)
+    );
+    const remainingWidth = imageArea.clientWidth - renderedWidth - 30;
+    if (remainingWidth >= width) {
+      imageArea.classList.remove("current_image_small");
+      imageArea.classList.add("current_image_sideblock");
+      extras.classList.add("extras-wrapper-sideblock");
+      extras.style.display = "inline-block";
+      extras.style.width = `${remainingWidth}px`;
+      extras.style.maxWidth = `${remainingWidth}px`;
+      extras.style.minWidth = "0px";
+      imageContainer.style.maxHeight = "calc(max(15rem, 100%))";
+    } else {
+      imageArea.classList.add("current_image_small");
+      imageArea.classList.remove("current_image_sideblock");
+      extras.classList.remove("extras-wrapper-sideblock");
+      extras.style.display = "block";
+      extras.style.width = "100%";
+      extras.style.maxWidth = "100%";
+      extras.style.minWidth = "";
+      imageContainer.style.maxHeight = "calc(max(15rem, 100% - 5.1rem))";
+    }
+  };
+  var setMetadataColumnMinWidth = (width) => {
+    if (!validMetadataColumnWidth(width)) {
+      return;
+    }
+    minimumWidth = width;
+    if (installed) {
+      alignImageDataFormat();
+    }
+  };
+  var initMetadataColumnWidth = () => {
+    if (installed || typeof alignImageDataFormat !== "function") {
+      return;
+    }
+    const original = alignImageDataFormat;
+    globalThis.alignImageDataFormat = () => {
+      original();
+      applyMetadataColumnWidth();
+    };
+    installed = true;
+  };
+
   // frontend/modelHashOverride.ts
   var FIELD_ID = "wtd_model_override_hash";
   var started3 = false;
@@ -1767,6 +1845,24 @@
                                 <br><b>Note:</b> Disabled by default. Applies immediately to future saves for all users. Existing files are not renamed.
                             </div>
 
+                            <div class="auto-input auto-input-flex">
+                                <label for="whattheduck-metadata-column-width">
+                                    <span class="auto-input-name">
+                                        Metadata Column Minimum Width
+                                        <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_metadata_column_width', arguments[0])">?</span>
+                                    </span>
+                                </label>
+                                <input class="auto-text wtd-metadata-column-width" type="number" id="whattheduck-metadata-column-width" min="${MIN_METADATA_COLUMN_WIDTH}" max="${MAX_METADATA_COLUMN_WIDTH}" step="1" value="${state.metadataColumnMinWidth ?? DEFAULT_METADATA_COLUMN_MIN_WIDTH}" aria-label="Metadata column minimum width in pixels">
+                                <span>px</span>
+                            </div>
+                            <div class="sui-popover sui-info-popover" id="popover_whattheduck_metadata_column_width">
+                                <b>Metadata Column Minimum Width</b> (pixels):<br>
+                                <span class="slight-left-margin-block">
+                                    In SwarmUI's Auto metadata layout, show metadata beside the image when at least this much width remains. SwarmUI normally requires more than 480 px. Lower values keep metadata beside the image more often. This does not change forced Side or Bottom layouts.
+                                </span>
+                                <br>Allowed range: ${MIN_METADATA_COLUMN_WIDTH}–${MAX_METADATA_COLUMN_WIDTH} px. Applies immediately after saving.
+                            </div>
+
                         </div>
                     </div>
 
@@ -1863,6 +1959,7 @@
   var keyboardNavigationEnabled = true;
   var trimPromptVariables = false;
   var normalizeOutputFilenames = false;
+  var metadataColumnMinWidth = DEFAULT_METADATA_COLUMN_MIN_WIDTH;
   var archFolderMappings = [];
   var clipboardPathFrom = "";
   var clipboardPathTo = "";
@@ -1909,6 +2006,8 @@
         keyboardNavigationEnabled = data.keyboardNavigationEnabled ?? false;
         trimPromptVariables = data.trimPromptVariables ?? false;
         normalizeOutputFilenames = data.normalizeOutputFilenames ?? false;
+        metadataColumnMinWidth = data.metadataColumnMinWidth ?? DEFAULT_METADATA_COLUMN_MIN_WIDTH;
+        setMetadataColumnMinWidth(metadataColumnMinWidth);
         clipboardPathFrom = data.clipboardPathFrom || "";
         clipboardPathTo = data.clipboardPathTo || "";
         serverRootPath = data.serverRootPath || "";
@@ -1926,6 +2025,12 @@
         );
         if (normalizeOutputFilenamesInput) {
           normalizeOutputFilenamesInput.checked = normalizeOutputFilenames;
+        }
+        const metadataWidthInput = document.getElementById(
+          "whattheduck-metadata-column-width"
+        );
+        if (metadataWidthInput) {
+          metadataWidthInput.value = String(metadataColumnMinWidth);
         }
         const fromInput = document.getElementById(
           "whattheduck-clipboard-from"
@@ -1959,6 +2064,16 @@
     const nextNormalizeOutputFilenames = readChecked(
       "whattheduck-normalize-output-filenames"
     );
+    const nextMetadataColumnMinWidth = Number(
+      readValue("whattheduck-metadata-column-width")
+    );
+    if (!validMetadataColumnWidth(nextMetadataColumnMinWidth)) {
+      showStatus(
+        `Metadata column width must be a whole number from ${MIN_METADATA_COLUMN_WIDTH} to ${MAX_METADATA_COLUMN_WIDTH} px.`,
+        "error"
+      );
+      return;
+    }
     const nextClipboardFrom = readValue("whattheduck-clipboard-from").trim();
     const nextClipboardTo = readValue("whattheduck-clipboard-to").trim();
     genericRequest(
@@ -1967,6 +2082,7 @@
         keyboardNavigationEnabled: keyboardNav,
         trimPromptVariables: nextTrimPromptVariables,
         normalizeOutputFilenames: nextNormalizeOutputFilenames,
+        metadataColumnMinWidth: nextMetadataColumnMinWidth,
         archFolderMappings: JSON.stringify(nextArchMappings),
         clipboardPathFrom: nextClipboardFrom,
         clipboardPathTo: nextClipboardTo
@@ -1976,6 +2092,8 @@
           keyboardNavigationEnabled = keyboardNav;
           trimPromptVariables = nextTrimPromptVariables;
           normalizeOutputFilenames = nextNormalizeOutputFilenames;
+          metadataColumnMinWidth = nextMetadataColumnMinWidth;
+          setMetadataColumnMinWidth(metadataColumnMinWidth);
           clipboardPathFrom = nextClipboardFrom;
           clipboardPathTo = nextClipboardTo;
           applyArchMappings(nextArchMappings);
@@ -1998,6 +2116,7 @@
       keyboardNavigationEnabled,
       trimPromptVariables,
       normalizeOutputFilenames,
+      metadataColumnMinWidth,
       archFolderMappings,
       clipboardPathFrom,
       clipboardPathTo,
@@ -2040,6 +2159,7 @@
   // frontend/main.ts
   redo.init();
   document.addEventListener("DOMContentLoaded", () => {
+    initMetadataColumnWidth();
     whatTheDuck.init();
     promptEdit.init();
     promptResize.init();

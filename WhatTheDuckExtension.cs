@@ -13,6 +13,9 @@ public class WhatTheDuckExtension : Extension
 
     public static bool KeyboardNavigationEnabled { get; set; } = true;
 
+    /// <summary>Minimum remaining image width, in pixels, for Auto metadata layout.</summary>
+    public static int MetadataColumnMinWidth { get; set; } = 480;
+
     /// <summary>Whether values resolved by prompt setvar tags should have leading
     /// and trailing whitespace removed before they are stored for the generation.</summary>
     public static bool TrimPromptVariables { get; set; }
@@ -78,6 +81,15 @@ public class WhatTheDuckExtension : Extension
                 {
                     TrimPromptVariables = trimPromptVariablesToken.Value<bool>();
                 }
+                if (settings.TryGetValue("metadataColumnMinWidth", out JToken metadataColumnMinWidthToken)
+                    && metadataColumnMinWidthToken.Type == JTokenType.Integer
+                    && int.TryParse(metadataColumnMinWidthToken.ToString(), out int width))
+                {
+                    if (width >= 160 && width <= 960)
+                    {
+                        MetadataColumnMinWidth = width;
+                    }
+                }
                 if (settings.TryGetValue("clipboardPathFrom", out JToken clipboardFromToken))
                 {
                     ClipboardPathFrom = clipboardFromToken.Value<string>() ?? "";
@@ -115,6 +127,7 @@ public class WhatTheDuckExtension : Extension
             {
                 ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
                 ["trimPromptVariables"] = TrimPromptVariables,
+                ["metadataColumnMinWidth"] = MetadataColumnMinWidth,
                 ["normalizeOutputFilenames"] = OutputFilenameNormalization.Enabled,
                 ["clipboardPathFrom"] = ClipboardPathFrom,
                 ["clipboardPathTo"] = ClipboardPathTo,
@@ -184,6 +197,7 @@ public class WhatTheDuckExtension : Extension
             ["success"] = true,
             ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
             ["trimPromptVariables"] = TrimPromptVariables,
+            ["metadataColumnMinWidth"] = MetadataColumnMinWidth,
             ["normalizeOutputFilenames"] = OutputFilenameNormalization.Enabled,
             ["clipboardPathFrom"] = ClipboardPathFrom,
             ["clipboardPathTo"] = ClipboardPathTo,
@@ -196,14 +210,25 @@ public class WhatTheDuckExtension : Extension
     }
 
     public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool trimPromptVariables = false, string archFolderMappings = null, string clipboardPathFrom = "", string clipboardPathTo = "",
-        [API.APIParameter("Normalize Unicode in future output filenames before saving, using the server platform's normalization form. Defaults to false.")] bool normalizeOutputFilenames = false)
+        [API.APIParameter("Normalize Unicode in future output filenames before saving, using the server platform's normalization form. Defaults to false.")] bool normalizeOutputFilenames = false,
+        [API.APIParameter("Minimum remaining width in pixels for Auto metadata layout (160-960). Omit to keep current setting.")] string metadataColumnMinWidth = null)
     {
         try
         {
+            int parsedMetadataColumnMinWidth = MetadataColumnMinWidth;
+            if (metadataColumnMinWidth is not null &&
+                (!int.TryParse(metadataColumnMinWidth, out parsedMetadataColumnMinWidth) || parsedMetadataColumnMinWidth < 160 || parsedMetadataColumnMinWidth > 960))
+            {
+                throw new ArgumentOutOfRangeException(nameof(metadataColumnMinWidth), "Width must be from 160 to 960 pixels.");
+            }
             // Install and validate the hook before changing any settings or reporting success.
             OutputFilenameNormalization.Configure(normalizeOutputFilenames);
             KeyboardNavigationEnabled = keyboardNavigationEnabled;
             TrimPromptVariables = trimPromptVariables;
+            if (metadataColumnMinWidth is not null)
+            {
+                MetadataColumnMinWidth = parsedMetadataColumnMinWidth;
+            }
             ClipboardPathFrom = clipboardPathFrom?.Trim() ?? "";
             ClipboardPathTo = clipboardPathTo?.Trim() ?? "";
             // Null means the caller didn't send the field; don't wipe saved mappings.

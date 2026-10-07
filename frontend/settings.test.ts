@@ -425,3 +425,46 @@ describe("output filename normalization setting", () => {
         jest.runOnlyPendingTimers();
     });
 });
+
+describe("metadata column width setting", () => {
+    afterEach(() => {
+        jest.useRealTimers();
+        jest.restoreAllMocks();
+        document.body.innerHTML = "";
+    });
+
+    it("loads saved width and submits a changed width", () => {
+        jest.useFakeTimers();
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        globalThis.registerNewTool = jest.fn(() => container);
+        const requests: {
+            route: string;
+            data: Record<string, unknown>;
+        }[] = [];
+        globalThis.genericRequest = ((route, data, callback) => {
+            requests.push({ route, data });
+            const complete = callback as (response: unknown) => void;
+            complete({
+                success: true,
+                keyboardNavigationEnabled: false,
+                metadataColumnMinWidth: 380,
+            });
+        }) as typeof genericRequest;
+
+        whatTheDuck.init();
+        const input = document.getElementById(
+            "whattheduck-metadata-column-width",
+        ) as HTMLInputElement;
+        expect(input.value).toBe("380");
+        input.value = "300";
+        document
+            .getElementById("whattheduck-form")
+            ?.dispatchEvent(new Event("submit", { cancelable: true }));
+        expect(requests.at(-1)).toMatchObject({
+            route: "WhatTheDuckSaveSettings",
+            data: { metadataColumnMinWidth: 300 },
+        });
+        jest.runOnlyPendingTimers();
+    });
+});

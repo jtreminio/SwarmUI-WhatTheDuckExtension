@@ -9,12 +9,20 @@ import { initBatchCompare } from "./batchCompare";
 import { initCompareShortcuts } from "./compareShortcuts";
 import { escapeAttr, escapeHtml } from "./escape";
 import { initKeyboardNavigation } from "./keyboardNavigation";
+import {
+    DEFAULT_METADATA_COLUMN_MIN_WIDTH,
+    MAX_METADATA_COLUMN_WIDTH,
+    MIN_METADATA_COLUMN_WIDTH,
+    setMetadataColumnMinWidth,
+    validMetadataColumnWidth,
+} from "./metadataColumnWidth";
 
 interface WhatTheDuckSettingsResponse {
     success: boolean;
     keyboardNavigationEnabled?: boolean;
     trimPromptVariables?: boolean;
     normalizeOutputFilenames?: boolean;
+    metadataColumnMinWidth?: number;
     clipboardPathFrom?: string;
     clipboardPathTo?: string;
     serverRootPath?: string;
@@ -27,6 +35,7 @@ export interface SettingsFormState {
     keyboardNavigationEnabled: boolean;
     trimPromptVariables: boolean;
     normalizeOutputFilenames?: boolean;
+    metadataColumnMinWidth?: number;
     archFolderMappings: ArchFolderMapping[];
     clipboardPathFrom: string;
     clipboardPathTo: string;
@@ -212,6 +221,24 @@ export const renderSettingsForm = (state: SettingsFormState): string => `
                                 <br><b>Note:</b> Disabled by default. Applies immediately to future saves for all users. Existing files are not renamed.
                             </div>
 
+                            <div class="auto-input auto-input-flex">
+                                <label for="whattheduck-metadata-column-width">
+                                    <span class="auto-input-name">
+                                        Metadata Column Minimum Width
+                                        <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_metadata_column_width', arguments[0])">?</span>
+                                    </span>
+                                </label>
+                                <input class="auto-text wtd-metadata-column-width" type="number" id="whattheduck-metadata-column-width" min="${MIN_METADATA_COLUMN_WIDTH}" max="${MAX_METADATA_COLUMN_WIDTH}" step="1" value="${state.metadataColumnMinWidth ?? DEFAULT_METADATA_COLUMN_MIN_WIDTH}" aria-label="Metadata column minimum width in pixels">
+                                <span>px</span>
+                            </div>
+                            <div class="sui-popover sui-info-popover" id="popover_whattheduck_metadata_column_width">
+                                <b>Metadata Column Minimum Width</b> (pixels):<br>
+                                <span class="slight-left-margin-block">
+                                    In SwarmUI's Auto metadata layout, show metadata beside the image when at least this much width remains. SwarmUI normally requires more than 480 px. Lower values keep metadata beside the image more often. This does not change forced Side or Bottom layouts.
+                                </span>
+                                <br>Allowed range: ${MIN_METADATA_COLUMN_WIDTH}–${MAX_METADATA_COLUMN_WIDTH} px. Applies immediately after saving.
+                            </div>
+
                         </div>
                     </div>
 
@@ -311,6 +338,7 @@ export const renderSettingsForm = (state: SettingsFormState): string => `
 let keyboardNavigationEnabled = true;
 let trimPromptVariables = false;
 let normalizeOutputFilenames = false;
+let metadataColumnMinWidth = DEFAULT_METADATA_COLUMN_MIN_WIDTH;
 let archFolderMappings: ArchFolderMapping[] = [];
 let clipboardPathFrom = "";
 let clipboardPathTo = "";
@@ -376,6 +404,10 @@ const loadSettings = (): void => {
             keyboardNavigationEnabled = data.keyboardNavigationEnabled ?? false;
             trimPromptVariables = data.trimPromptVariables ?? false;
             normalizeOutputFilenames = data.normalizeOutputFilenames ?? false;
+            metadataColumnMinWidth =
+                data.metadataColumnMinWidth ??
+                DEFAULT_METADATA_COLUMN_MIN_WIDTH;
+            setMetadataColumnMinWidth(metadataColumnMinWidth);
             clipboardPathFrom = data.clipboardPathFrom || "";
             clipboardPathTo = data.clipboardPathTo || "";
             serverRootPath = data.serverRootPath || "";
@@ -397,6 +429,12 @@ const loadSettings = (): void => {
             if (normalizeOutputFilenamesInput) {
                 normalizeOutputFilenamesInput.checked =
                     normalizeOutputFilenames;
+            }
+            const metadataWidthInput = document.getElementById(
+                "whattheduck-metadata-column-width",
+            ) as HTMLInputElement | null;
+            if (metadataWidthInput) {
+                metadataWidthInput.value = String(metadataColumnMinWidth);
             }
             const fromInput = document.getElementById(
                 "whattheduck-clipboard-from",
@@ -433,6 +471,16 @@ const saveSettings = (): void => {
     const nextNormalizeOutputFilenames = readChecked(
         "whattheduck-normalize-output-filenames",
     );
+    const nextMetadataColumnMinWidth = Number(
+        readValue("whattheduck-metadata-column-width"),
+    );
+    if (!validMetadataColumnWidth(nextMetadataColumnMinWidth)) {
+        showStatus(
+            `Metadata column width must be a whole number from ${MIN_METADATA_COLUMN_WIDTH} to ${MAX_METADATA_COLUMN_WIDTH} px.`,
+            "error",
+        );
+        return;
+    }
     const nextClipboardFrom = readValue("whattheduck-clipboard-from").trim();
     const nextClipboardTo = readValue("whattheduck-clipboard-to").trim();
 
@@ -442,6 +490,7 @@ const saveSettings = (): void => {
             keyboardNavigationEnabled: keyboardNav,
             trimPromptVariables: nextTrimPromptVariables,
             normalizeOutputFilenames: nextNormalizeOutputFilenames,
+            metadataColumnMinWidth: nextMetadataColumnMinWidth,
             archFolderMappings: JSON.stringify(nextArchMappings),
             clipboardPathFrom: nextClipboardFrom,
             clipboardPathTo: nextClipboardTo,
@@ -451,6 +500,8 @@ const saveSettings = (): void => {
                 keyboardNavigationEnabled = keyboardNav;
                 trimPromptVariables = nextTrimPromptVariables;
                 normalizeOutputFilenames = nextNormalizeOutputFilenames;
+                metadataColumnMinWidth = nextMetadataColumnMinWidth;
+                setMetadataColumnMinWidth(metadataColumnMinWidth);
                 clipboardPathFrom = nextClipboardFrom;
                 clipboardPathTo = nextClipboardTo;
                 applyArchMappings(nextArchMappings);
@@ -476,6 +527,7 @@ const init = (): void => {
         keyboardNavigationEnabled,
         trimPromptVariables,
         normalizeOutputFilenames,
+        metadataColumnMinWidth,
         archFolderMappings,
         clipboardPathFrom,
         clipboardPathTo,
