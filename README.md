@@ -58,6 +58,14 @@ Can be enabled/disabled in the settings panel.
 
 Adds an opt-in **Trim Prompt Variables** setting. When enabled, values assigned with SwarmUI's `<setvar[...]:...>` prompt tag have leading and trailing whitespace removed after nested prompt tags are resolved. The trimmed value is written back to the current generation's variable dictionary, so both an emitting `<setvar>` and later `<var:...>` references use the same normalized value.
 
+### Output Filename Normalization
+
+Enable **Normalize Output Filenames** in **Tools → WhatTheDuck Settings** to normalize Unicode in generated filenames and subfolders before SwarmUI saves them. This prevents Syncthing from changing an accented filename after saving while the browser still refers to its original spelling. Accents are preserved: for example, Linux saves `Alai\u0308a` as `Alaïa`.
+
+The setting is off by default, shared across users, and applies immediately to future saves. It follows the **SwarmUI server's** platform: NFC on Linux and Windows, NFD on macOS, regardless of which computer runs the browser. Existing files, prompts, and metadata are unchanged. SwarmUI still handles filename collisions and numbering; output files, sidecars, and browser URLs all use the normalized path.
+
+The extension uses a Harmony postfix on `User.BuildImageOutputPath`, before `Session.SaveImage` selects an available filename. ICU4N supplies Unicode normalization because SwarmUI's invariant globalization mode disables `string.Normalize`. These private dependencies are restored and copied when SwarmUI builds the extension; no core source changes are required.
+
 ### Redo
 
 Adds a **Redo** entry to the current image's action menu (the "More" dropdown alongside "Upscale 2x", "Refine Image", and "View In History").

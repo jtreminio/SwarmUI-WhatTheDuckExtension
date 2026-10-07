@@ -22,4 +22,24 @@
     <Compile Remove="**/._*" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Lib.Harmony" Version="2.4.2" GeneratePathProperty="true" />
+    <PackageReference Include="ICU4N" Version="60.1.0-alpha.440" GeneratePathProperty="true" />
+    <PackageReference Include="ICU4N.Resources" Version="60.1.0-alpha.440" GeneratePathProperty="true" />
+    <PackageReference Include="J2N" Version="2.1.0" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <!-- The host supplies its own dependencies. Copy only the private normalization/patching
+       libraries, flat as required by SwarmUI's extension loader. Normalization needs only
+       ICU's neutral Unicode data, not its localized resource assemblies. -->
+  <Target Name="CopyFilenameNormalizationDependencies" AfterTargets="Build">
+    <ItemGroup>
+      <_FilenameNormalizationDependency Include="$(PkgLib_Harmony)/lib/net8.0/0Harmony.dll" />
+      <_FilenameNormalizationDependency Include="$(PkgICU4N)/lib/net8.0/ICU4N.dll" />
+      <_FilenameNormalizationDependency Include="$(PkgICU4N_Resources)/lib/netstandard2.0/ICU4N.resources.dll" />
+      <_FilenameNormalizationDependency Include="$(PkgJ2N)/lib/net8.0/J2N.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_FilenameNormalizationDependency)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

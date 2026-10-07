@@ -90,6 +90,10 @@ public class WhatTheDuckExtension : Extension
                 {
                     ArchFolderMappings = SanitizeArchMappings(archMappings);
                 }
+                if (settings.TryGetValue("normalizeOutputFilenames", out JToken normalizeOutputFilenamesToken))
+                {
+                    OutputFilenameNormalization.Configure(normalizeOutputFilenamesToken.Value<bool>());
+                }
 
                 foreach (var setting in settings.Properties())
                 {
@@ -111,6 +115,7 @@ public class WhatTheDuckExtension : Extension
             {
                 ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
                 ["trimPromptVariables"] = TrimPromptVariables,
+                ["normalizeOutputFilenames"] = OutputFilenameNormalization.Enabled,
                 ["clipboardPathFrom"] = ClipboardPathFrom,
                 ["clipboardPathTo"] = ClipboardPathTo,
                 ["archFolderMappings"] = ArchFolderMappings
@@ -179,6 +184,7 @@ public class WhatTheDuckExtension : Extension
             ["success"] = true,
             ["keyboardNavigationEnabled"] = KeyboardNavigationEnabled,
             ["trimPromptVariables"] = TrimPromptVariables,
+            ["normalizeOutputFilenames"] = OutputFilenameNormalization.Enabled,
             ["clipboardPathFrom"] = ClipboardPathFrom,
             ["clipboardPathTo"] = ClipboardPathTo,
             // Swarm's own base path, offered as the Server Path Prefix placeholder since dumps
@@ -189,10 +195,13 @@ public class WhatTheDuckExtension : Extension
         };
     }
 
-    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool trimPromptVariables = false, string archFolderMappings = null, string clipboardPathFrom = "", string clipboardPathTo = "")
+    public async Task<JObject> WhatTheDuckSaveSettings(Session session, bool keyboardNavigationEnabled, bool trimPromptVariables = false, string archFolderMappings = null, string clipboardPathFrom = "", string clipboardPathTo = "",
+        [API.APIParameter("Normalize Unicode in future output filenames before saving, using the server platform's normalization form. Defaults to false.")] bool normalizeOutputFilenames = false)
     {
         try
         {
+            // Install and validate the hook before changing any settings or reporting success.
+            OutputFilenameNormalization.Configure(normalizeOutputFilenames);
             KeyboardNavigationEnabled = keyboardNavigationEnabled;
             TrimPromptVariables = trimPromptVariables;
             ClipboardPathFrom = clipboardPathFrom?.Trim() ?? "";
@@ -203,7 +212,7 @@ public class WhatTheDuckExtension : Extension
                 ArchFolderMappings = SanitizeArchMappings(JArray.Parse(string.IsNullOrWhiteSpace(archFolderMappings) ? "[]" : archFolderMappings));
             }
             SaveSettings();
-            Logs.Info($"WhatTheDuck: Settings updated - keyboard navigation: {keyboardNavigationEnabled}, trim prompt variables: {trimPromptVariables}");
+            Logs.Info($"WhatTheDuck: Settings updated - keyboard navigation: {keyboardNavigationEnabled}, trim prompt variables: {trimPromptVariables}, normalize output filenames: {normalizeOutputFilenames}");
 
             return new JObject
             {

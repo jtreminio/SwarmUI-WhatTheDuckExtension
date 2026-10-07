@@ -1748,6 +1748,25 @@
                                 <br><b>Note:</b> Nested prompt tags are resolved before trimming, and changes apply to new generations immediately.
                             </div>
 
+                            <div class="auto-input auto-input-flex">
+                                <span class="auto-input-name">
+                                    Normalize Output Filenames
+                                    <span class="auto-input-qbutton info-popover-button" onclick="doPopover('whattheduck_normalize_output_filenames', arguments[0])">?</span>
+                                </span>
+                                <label class="auto-checkbox">
+                                    <input type="checkbox" id="whattheduck-normalize-output-filenames" ${state.normalizeOutputFilenames ? "checked" : ""}>
+                                    <span class="auto-checkbox-label">Enable</span>
+                                </label>
+                            </div>
+                            <div class="sui-popover sui-info-popover" id="popover_whattheduck_normalize_output_filenames">
+                                <b>Normalize Output Filenames</b> (toggle):<br>
+                                <span class="slight-left-margin-block">
+                                    Standardizes Unicode in generated filenames and subfolders before saving. This prevents sync tools such as Syncthing from renaming accented filenames and breaking image actions in the browser. Accents are preserved; prompts and metadata are unchanged.
+                                </span>
+                                <br>Uses the server's platform: NFC on Linux and Windows, NFD on macOS.
+                                <br><b>Note:</b> Disabled by default. Applies immediately to future saves for all users. Existing files are not renamed.
+                            </div>
+
                         </div>
                     </div>
 
@@ -1843,6 +1862,7 @@
         `;
   var keyboardNavigationEnabled = true;
   var trimPromptVariables = false;
+  var normalizeOutputFilenames = false;
   var archFolderMappings = [];
   var clipboardPathFrom = "";
   var clipboardPathTo = "";
@@ -1888,6 +1908,7 @@
         }
         keyboardNavigationEnabled = data.keyboardNavigationEnabled ?? false;
         trimPromptVariables = data.trimPromptVariables ?? false;
+        normalizeOutputFilenames = data.normalizeOutputFilenames ?? false;
         clipboardPathFrom = data.clipboardPathFrom || "";
         clipboardPathTo = data.clipboardPathTo || "";
         serverRootPath = data.serverRootPath || "";
@@ -1899,6 +1920,12 @@
         );
         if (trimPromptVariablesInput) {
           trimPromptVariablesInput.checked = trimPromptVariables;
+        }
+        const normalizeOutputFilenamesInput = document.getElementById(
+          "whattheduck-normalize-output-filenames"
+        );
+        if (normalizeOutputFilenamesInput) {
+          normalizeOutputFilenamesInput.checked = normalizeOutputFilenames;
         }
         const fromInput = document.getElementById(
           "whattheduck-clipboard-from"
@@ -1929,6 +1956,9 @@
       "whattheduck-trim-prompt-variables"
     );
     const nextArchMappings = readArchMappings(document);
+    const nextNormalizeOutputFilenames = readChecked(
+      "whattheduck-normalize-output-filenames"
+    );
     const nextClipboardFrom = readValue("whattheduck-clipboard-from").trim();
     const nextClipboardTo = readValue("whattheduck-clipboard-to").trim();
     genericRequest(
@@ -1936,6 +1966,7 @@
       {
         keyboardNavigationEnabled: keyboardNav,
         trimPromptVariables: nextTrimPromptVariables,
+        normalizeOutputFilenames: nextNormalizeOutputFilenames,
         archFolderMappings: JSON.stringify(nextArchMappings),
         clipboardPathFrom: nextClipboardFrom,
         clipboardPathTo: nextClipboardTo
@@ -1944,6 +1975,7 @@
         if (data.success) {
           keyboardNavigationEnabled = keyboardNav;
           trimPromptVariables = nextTrimPromptVariables;
+          normalizeOutputFilenames = nextNormalizeOutputFilenames;
           clipboardPathFrom = nextClipboardFrom;
           clipboardPathTo = nextClipboardTo;
           applyArchMappings(nextArchMappings);
@@ -1965,6 +1997,7 @@
     toolDiv.innerHTML = renderSettingsForm({
       keyboardNavigationEnabled,
       trimPromptVariables,
+      normalizeOutputFilenames,
       archFolderMappings,
       clipboardPathFrom,
       clipboardPathTo,

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "@jest/globals";
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import { escapeAttr, escapeHtml } from "./escape";
 import {
     type ArchRowOptions,
@@ -8,6 +8,7 @@ import {
     renderSettingsForm,
     SERVER_PATH_PLACEHOLDER_FALLBACK,
     serverPathPlaceholder,
+    whatTheDuck,
 } from "./settings";
 
 const ROW_OPTIONS: ArchRowOptions = {
@@ -375,5 +376,52 @@ describe("settings pure renderers", () => {
                 },
             ]);
         });
+    });
+});
+
+describe("output filename normalization setting", () => {
+    afterEach(() => {
+        jest.useRealTimers();
+        jest.restoreAllMocks();
+    });
+
+    it.each([
+        undefined,
+        false,
+        true,
+    ])("loads saved value %s and submits a changed value", (savedValue) => {
+        jest.useFakeTimers();
+        const container = document.createElement("div");
+        document.body.appendChild(container);
+        globalThis.registerNewTool = jest.fn(() => container);
+        const requests: {
+            route: string;
+            data: Record<string, unknown>;
+        }[] = [];
+        globalThis.genericRequest = ((route, data, callback) => {
+            requests.push({ route, data });
+            const complete = callback as (response: unknown) => void;
+            complete({
+                success: true,
+                keyboardNavigationEnabled: false,
+                normalizeOutputFilenames: savedValue,
+            });
+        }) as typeof genericRequest;
+
+        whatTheDuck.init();
+        const checkbox = document.getElementById(
+            "whattheduck-normalize-output-filenames",
+        ) as HTMLInputElement;
+        expect(checkbox.checked).toBe(savedValue ?? false);
+        checkbox.checked = !checkbox.checked;
+        document
+            .getElementById("whattheduck-form")
+            ?.dispatchEvent(new Event("submit", { cancelable: true }));
+
+        expect(requests.at(-1)).toMatchObject({
+            route: "WhatTheDuckSaveSettings",
+            data: { normalizeOutputFilenames: !(savedValue ?? false) },
+        });
+        jest.runOnlyPendingTimers();
     });
 });
