@@ -119,6 +119,7 @@ beforeEach(() => {
                 },
             ],
         }),
+        lightRefresh: jest.fn(),
         rerender: jest.fn(),
     });
     browser.multiSelectToggleButton.addEventListener("click", () => {
@@ -132,6 +133,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    jest.restoreAllMocks();
     document
         .querySelector("#wtd-model-preset-modal")
         ?.dispatchEvent(new Event("hidden.bs.modal"));
@@ -143,6 +145,8 @@ afterEach(() => {
         "allPresetsUnsorted",
         "doNoticePopover",
         "genericRequest",
+        "getUserSetting",
+        "showError",
         "allModelBrowsers",
         "$",
     ]) {
@@ -349,8 +353,39 @@ describeWithSwarm("C over models (SwarmUI integration)", () => {
 });
 
 describeWithSwarm("model multi-select (SwarmUI integration)", () => {
-    it("renames Delete Model so the native bulk action exits multi-select", () => {
-        const deleteModel = jest.fn();
+    it.each([
+        { setting: true, confirm: false, fail: false },
+        { setting: true, confirm: true, fail: false },
+        { setting: true, confirm: true, fail: true },
+        { setting: false, confirm: false, fail: false },
+    ])("bulk deletion: $setting setting, $confirm confirmation, $fail failure", ({
+        setting,
+        confirm,
+        fail,
+    }) => {
+        const deletions: {
+            data: { modelName: string; subtype: string };
+            success: () => void;
+            fail: (message: string) => void;
+        }[] = [];
+        const singleModelDelete = jest.fn();
+        jest.spyOn(window, "confirm").mockReturnValue(confirm);
+        g.getUserSetting = (id: string, defaultValue: boolean) => {
+            expect(id).toBe("ui.checkifsurebeforedelete");
+            expect(defaultValue).toBe(true);
+            return setting;
+        };
+        g.showError = jest.fn();
+        g.genericRequest = (
+            endpoint: string,
+            data: { modelName: string; subtype: string },
+            success: () => void,
+            _depth: number,
+            fail: (message: string) => void,
+        ) => {
+            expect(endpoint).toBe("DeleteModel");
+            deletions.push({ data, success, fail });
+        };
         Object.assign(browser, {
             describe: () => {
                 const description = {
@@ -358,7 +393,7 @@ describeWithSwarm("model multi-select (SwarmUI integration)", () => {
                         {
                             label: "Delete Model",
                             can_multi: true,
-                            onclick: deleteModel,
+                            onclick: singleModelDelete,
                         },
                     ],
                 };
@@ -369,15 +404,39 @@ describeWithSwarm("model multi-select (SwarmUI integration)", () => {
             },
         });
         selectModels();
-        expect(browser.getCommonMultiSelectActionLabels()).toContain("Delete");
-        expect(browser.getCommonMultiSelectActionLabels()).not.toContain(
-            "Delete Model",
-        );
         browser.runMultiSelectAction("Delete");
-        expect(deleteModel).toHaveBeenCalledTimes(2);
+        expect(window.confirm).toHaveBeenCalledTimes(setting ? 1 : 0);
+        expect(singleModelDelete).not.toHaveBeenCalled();
+        expect(browser.getMultiSelectedFiles()).toHaveLength(2);
+        expect(browser.lightRefresh).not.toHaveBeenCalled();
+        if (setting && !confirm) {
+            expect(deletions).toHaveLength(0);
+            return;
+        }
+        browser.runMultiSelectAction("Delete");
+        expect(window.confirm).toHaveBeenCalledTimes(setting ? 1 : 0);
+        expect(deletions).toHaveLength(1);
+        browser.setMultiSelectActive(false);
+        if (fail) {
+            deletions[0].fail("Permission denied");
+        } else {
+            deletions[0].success();
+        }
+        expect(deletions).toHaveLength(2);
+        deletions[1].success();
+        expect(deletions.map(({ data }) => data)).toEqual([
+            { modelName: "folder/a.safetensors", subtype: "Stable-Diffusion" },
+            { modelName: "b.safetensors", subtype: "Stable-Diffusion" },
+        ]);
+        expect(browser.lightRefresh).toHaveBeenCalledTimes(1);
         expect(browser.multiSelectActive).toBe(false);
-        expect(browser.getMultiSelectedFiles()).toHaveLength(0);
-        expect(browser.multiSelectActionSelect.style.display).toBe("none");
+        if (fail) {
+            expect(showError).toHaveBeenCalledWith(
+                "Could not delete 1 of 2 models:\nfolder/a.safetensors: Permission denied",
+            );
+        } else {
+            expect(showError).not.toHaveBeenCalled();
+        }
     });
     it.each([
         { a: ["Portrait"], b: ["Portrait"], expected: "Portrait" },

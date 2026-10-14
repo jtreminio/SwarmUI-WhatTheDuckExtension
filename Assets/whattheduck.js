@@ -623,7 +623,53 @@
   var ACTION = "Set Linked Preset";
   var MODAL_ID = "wtd-model-preset-modal";
   var patched = /* @__PURE__ */ new WeakSet();
+  var deleting = /* @__PURE__ */ new WeakSet();
   var dialog = null;
+  function deleteSelectedModels(wrapper) {
+    const browser = wrapper.browser;
+    if (deleting.has(browser) || !browser.getCommonMultiSelectActionLabels().includes("Delete")) {
+      return;
+    }
+    const names = browser.getMultiSelectedFiles().map((file) => file.data.name);
+    if (!names.length || getUserSetting("ui.checkifsurebeforedelete", true) && !window.confirm(
+      `Delete ${names.length} selected ${wrapper.subType} model${names.length === 1 ? "" : "s"} and their associated files?
+
+${names.join("\n")}`
+    )) {
+      return;
+    }
+    deleting.add(browser);
+    let index = 0;
+    const failures = [];
+    const next = () => {
+      if (index === names.length) {
+        deleting.delete(browser);
+        if (failures.length < names.length) {
+          browser.setMultiSelectActive(false);
+          browser.lightRefresh();
+        }
+        if (failures.length) {
+          showError(
+            `Could not delete ${failures.length} of ${names.length} models:
+${failures.join("\n")}`
+          );
+        }
+        return;
+      }
+      const name = names[index++];
+      genericRequest(
+        "DeleteModel",
+        { modelName: name, subtype: wrapper.subType },
+        next,
+        0,
+        (message) => {
+          failures.push(`${name}: ${message}`);
+          next();
+        }
+      );
+    };
+    next();
+  }
   function toggleHoveredModelSelection(target) {
     const tile = target?.closest("[data-name]");
     if (!tile?.isConnected || tile.closest("[hidden], [inert], .tab-pane:not(.active)") || typeof allModelBrowsers === "undefined") {
@@ -792,6 +838,8 @@
     browser.runMultiSelectAction = function(label) {
       if (label === ACTION) {
         choosePreset(wrapper);
+      } else if (label === "Delete") {
+        deleteSelectedModels(wrapper);
       } else {
         originalRun.call(this, label);
       }

@@ -63,6 +63,7 @@ interface WtdModelBrowser {
         getMultiSelectedFiles(): { name: string; data: { name: string } }[];
         getCommonMultiSelectActionLabels(): string[];
         runMultiSelectAction(label: string): void;
+        lightRefresh(): void;
         rerender(): void;
     };
 }
@@ -139,6 +140,7 @@ declare const currentImageHelper: {
 
 declare function alignImageDataFormat(): void;
 declare function getUserSetting(id: string, defaultValue?: string): string;
+declare function getUserSetting(id: string, defaultValue: boolean): boolean;
 
 declare function interpretMetadata(
     metadata: string | Uint8Array | number[] | null,

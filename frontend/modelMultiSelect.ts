@@ -2,7 +2,58 @@
 const ACTION = "Set Linked Preset";
 const MODAL_ID = "wtd-model-preset-modal";
 const patched = new WeakSet<WtdModelBrowser["browser"]>();
+const deleting = new WeakSet<WtdModelBrowser["browser"]>();
 let dialog: HTMLDivElement | null = null;
+
+function deleteSelectedModels(wrapper: WtdModelBrowser): void {
+    const browser = wrapper.browser;
+    if (
+        deleting.has(browser) ||
+        !browser.getCommonMultiSelectActionLabels().includes("Delete")
+    ) {
+        return;
+    }
+    const names = browser.getMultiSelectedFiles().map((file) => file.data.name);
+    if (
+        !names.length ||
+        (getUserSetting("ui.checkifsurebeforedelete", true) &&
+            !window.confirm(
+                `Delete ${names.length} selected ${wrapper.subType} model${names.length === 1 ? "" : "s"} and their associated files?\n\n${names.join("\n")}`,
+            ))
+    ) {
+        return;
+    }
+    deleting.add(browser);
+    let index = 0;
+    const failures: string[] = [];
+    const next = (): void => {
+        if (index === names.length) {
+            deleting.delete(browser);
+            if (failures.length < names.length) {
+                browser.setMultiSelectActive(false);
+                browser.lightRefresh();
+            }
+            if (failures.length) {
+                showError(
+                    `Could not delete ${failures.length} of ${names.length} models:\n${failures.join("\n")}`,
+                );
+            }
+            return;
+        }
+        const name = names[index++];
+        genericRequest(
+            "DeleteModel",
+            { modelName: name, subtype: wrapper.subType },
+            next,
+            0,
+            (message) => {
+                failures.push(`${name}: ${message}`);
+                next();
+            },
+        );
+    };
+    next();
+}
 
 /** Called by the shared C shortcut before considering image comparison. */
 export function toggleHoveredModelSelection(target: Element | null): boolean {
@@ -185,7 +236,6 @@ export function enableModelMultiSelect(wrapper: WtdModelBrowser): void {
     wrapper.modelDescribeCallbacks.push((description) => {
         for (const button of description.buttons) {
             if (button.label === "Delete Model") {
-                // Core exits multi-select after bulk actions named "Delete".
                 button.label = "Delete";
             }
         }
@@ -202,6 +252,8 @@ export function enableModelMultiSelect(wrapper: WtdModelBrowser): void {
     browser.runMultiSelectAction = function (label) {
         if (label === ACTION) {
             choosePreset(wrapper);
+        } else if (label === "Delete") {
+            deleteSelectedModels(wrapper);
         } else {
             originalRun.call(this, label);
         }
