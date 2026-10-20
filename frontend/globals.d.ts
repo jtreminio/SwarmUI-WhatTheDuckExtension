@@ -138,6 +138,13 @@ declare const currentImageHelper: {
     getCurrentImageContainer(): HTMLElement | null;
 };
 
+declare const imageFullView: {
+    isOpen(): boolean;
+    copyState(): unknown;
+    pasteState(state: unknown): void;
+    showImage(src: string, metadata?: string, batchId?: string): void;
+};
+
 declare function alignImageDataFormat(): void;
 declare function getUserSetting(id: string, defaultValue?: string): string;
 declare function getUserSetting(id: string, defaultValue: boolean): boolean;

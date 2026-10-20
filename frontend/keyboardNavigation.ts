@@ -10,6 +10,7 @@
  * - E: End / interrupt current generation(s) (same as the interrupt button)
  * - R: Redo current image with a fresh seed (same as the Redo button)
  */
+import { navigateBatchAudio } from "./audioNavigation";
 import { isEditableElement, suppressEvent } from "./dom";
 import { redo } from "./redo";
 
@@ -25,6 +26,9 @@ let lastDeletePress = 0;
 let deleteTimer: ReturnType<typeof setTimeout> | null = null;
 
 const dispatchArrowKey = (direction: "left" | "right"): void => {
+    if (navigateBatchAudio(direction === "right")) {
+        return;
+    }
     const isLeft = direction === "left";
     const key = isLeft ? "ArrowLeft" : "ArrowRight";
     const keyCode = isLeft ? 37 : 39;
