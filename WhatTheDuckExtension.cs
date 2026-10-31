@@ -53,6 +53,7 @@ public class WhatTheDuckExtension : Extension
         API.RegisterAPICall(WhatTheDuckSaveSettings, true, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(PromptEditApi.WhatTheDuckEditPrompt, true, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(ModelDownloadApi.WhatTheDuckDownloadModelWS, true, Permissions.DownloadModels);
+        API.RegisterAPICall(CivitaiIndexApi.WhatTheDuckMatchCivitaiVersions, false, Permissions.FundamentalModelAccess);
         API.RegisterAPICall(ArchDetectionApi.WhatTheDuckDetectModelArch, false, Permissions.FundamentalGenerateTabAccess);
         API.RegisterAPICall(ComfyWorkflowSaveApi.WhatTheDuckSaveComfyWorkflow, true, Permissions.FundamentalGenerateTabAccess);
     }
@@ -61,7 +62,10 @@ public class WhatTheDuckExtension : Extension
     {
         // Run after extensions register their metadata model tracking in OnInit.
         ModelHashOverrides.Register();
+        CivitaiIndexApi.Start();
     }
+
+    public override void OnShutdown() => CivitaiIndexApi.Stop();
 
     #region Settings Management
 

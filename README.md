@@ -6,6 +6,73 @@ Use at your own peril!
 
 ## Features
 
+### Persistent Civitai Identity Index
+
+WhatTheDuck indexes local checkpoints and LoRAs in `<DataDir>/WhatTheDuck/CivitaiIdentityIndex.json`. It stores Civitai model/version IDs, optional file IDs, algorithm-qualified hashes, publication dates, provenance, and retry state. Atomic writes preserve the index across restarts. Output **Model Hash Overrides** are never used as identity evidence.
+
+The index reconciles once at startup and when SwarmUI refreshes its model list. There is no periodic inventory scan. Extension-owned completion hooks cover checkpoint/LoRA handler refreshes and subsequent metadata resaves, including SwarmUI downloads that resave after refreshing. Model refresh/path-change events also queue reconciliation. These signals are coalesced, processed outside SwarmUI's inventory locks, and retained if reconciliation fails. No core source changes are required. Deleted files stop matching as soon as a batch request checks them; the next model-list refresh removes their stored records. An unchanged sidecar is not reused when replacing an already indexed model file, while a fresh Swarm hash can identify the replacement.
+
+The background worker reads bounded safetensors headers, supported sidecars (`.swarm.json`, `.json`, `.cm-info.json`, `.civitai.info`), and applicable host metadata caches. It prefers structured source IDs, then Swarm's leading `From <a href="https://civitai…">` source link. Arbitrary links in descriptions do not qualify. GGUF files can be identified through sidecars or applicable cached source metadata; GGUF tensor hashes are not used.
+
+Missing identities or publication dates are resolved through public Civitai version/by-hash endpoints. One worker deduplicates lookups and limits concurrency to one request, with at least one second between requests. Pending work is ordered by retry time; an idle worker sleeps until a refresh or the next retry instead of regrouping the inventory. Successful results are reused; a successful response with no publication date remains unordered and is not fetched repeatedly. Missing results are cached for seven days. Other resource-specific HTTP 4xx failures retry after one day without blocking unrelated identities. Transient errors use exponential backoff; HTTP 429/503 respects `Retry-After` and pauses all resolution. Credentials and source descriptions are not persisted or returned. Set server environment variable `SWARM_WTD_CIVITAI_RESOLVE=false` before startup to disable network enrichment while keeping local indexing and matching.
+
+Hash lookups use only the tensor SHA256 already present in SwarmUI's shared `Metadata.Hash` cache, validated against the file's modification time. It is stored as `TensorSHA256`; its first 12 characters are used as `AutoV3`. The index does not import hashes directly from model headers, sidecars, or Civitai responses, and never uses whole-file SHA256 for lookup. Older index records are revalidated under this policy before use. The resolver follows [Civitai's version API](https://github.com/civitai/civitai-developer-docs/blob/main/site/reference/model-versions.md). Files without reliable source IDs or an existing Swarm hash remain explicitly unresolved. The index never computes missing model hashes or rewrites model files/sidecars.
+
+#### Batch matching API
+
+Send an authenticated JSON `POST /API/WhatTheDuckMatchCivitaiVersions`. The route requires Swarm's `FundamentalModelAccess` permission and applies the session user's model-access filter. Only currently registered local files can match. Remote inventories are excluded.
+
+```json
+{
+  "session_id": "...",
+  "items": [
+    {
+      "modelId": 3023619,
+      "modelVersionId": 3439242,
+      "modelType": "Checkpoint",
+      "publishedAt": 1793370343086
+    }
+  ]
+}
+```
+
+`items` contains 0–500 objects. IDs must be positive JSON integers within JavaScript's safe integer range. `modelType` accepts `Checkpoint`, `LoRA`/`LORA`, `LoCon`/`LoCON`, or `DoRA`; the latter types use Swarm's `LoRA` inventory. `publishedAt` is an integer Unix timestamp in **milliseconds**, from 0 through 253402300799999. Omitted or `null` means unknown. ISO strings and fractional values are rejected. An invalid item rejects the entire batch with `error_id: "invalid_civitai_batch"`. Input order and duplicates are preserved. Client observations never create or update local ownership records.
+
+Example response when an earlier version is installed:
+
+```json
+{
+  "schemaVersion": 1,
+  "indexRevision": "opaque-revision",
+  "indexState": "ready",
+  "coverage": { "localFiles": 1, "identifiedFiles": 1, "unresolvedFiles": 0 },
+  "results": [
+    {
+      "modelId": 3023619,
+      "modelVersionId": 3439242,
+      "status": "older",
+      "ownedVersionIds": [3433581],
+      "reason": "earlier_publication"
+    }
+  ]
+}
+```
+
+| Status | Meaning | Reason |
+| --- | --- | --- |
+| `downloaded` | The exact displayed version has an existing, accessible local file. | `exact_version` |
+| `older` | Every identified local version of this model has an earlier publication date. | `earlier_publication` |
+| `different` | Another version is local, but at least one date is unknown, equal, or newer. | `different_or_unordered_version` |
+| `unknown` | No accessible local identity proves a match, or the index is unavailable. | `no_identified_local_version` or `index_unavailable` |
+
+An exact match takes priority over other versions. Ordering uses publication dates only, never IDs, names, filenames, or `modelspec.date`/`createdAt`. `ownedVersionIds` contains sorted, distinct accessible versions. There is deliberately no definitive `not_downloaded` status.
+
+`indexState` is `partial` until startup reconciliation completes or while accessible files lack identity. `ready` means identity coverage is complete for the current inventory snapshot; publication dates may still be unknown. `unavailable` means the service has not initialized or could not load its store; revision and coverage are then `null`. Coverage counts exclude models denied to the session. Counts reflect reconciliation, with additional checks for stale files relevant to the current batch.
+
+`indexRevision` changes when a persisted snapshot changes. It is not an HTTP cache validator: file deletion and access changes can affect a response before reconciliation changes the revision. Clients should re-query visible cards periodically and after inventory changes, and coalesce repeated observations. Ordinary batch requests perform no Civitai requests, metadata scans, or tensor hashing. New files placed outside Swarm's current inventory become visible after Swarm refreshes that inventory.
+
+Restart SwarmUI with the updated extension to register the route. A corrupt or unsupported index is preserved and reported as unavailable in logs/API results. Chrome integration is separate; clients should report a missing route as an extension-version requirement.
+
 ### Model Hash Overrides
 
 Open a model's **Edit Metadata** modal, enter an **Override hash**, and click **Save**. Future generated images and videos use that value in `sui_models` metadata when SwarmUI's **Image Metadata Include Model Hash** setting is enabled. Hashes may contain 1–64 hexadecimal characters, optionally prefixed with `0x`; their case and prefix are preserved. Clear the field and save to restore the native hash.

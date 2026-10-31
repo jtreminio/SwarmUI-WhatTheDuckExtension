@@ -145,6 +145,7 @@ public static class ModelDownloadApi
                     Logs.Warning($"Could not resave model '{name}.safetensors' as it has not shown up in the backing handler. Something may have gone wrong.");
                 }
             }
+            CivitaiIndexApi.RequestRefresh();
             await ws.SendJson(new JObject() { ["success"] = true }, API.WebsocketTimeout);
         }
         catch (SwarmReadableErrorException userErr)
