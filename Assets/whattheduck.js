@@ -1890,6 +1890,22 @@ ${failures.join("\n")}`
   );
   var renderSettingsForm = (state) => `
             <div class="whattheduck-settings">
+                <section class="input-group input-group-open wtd-browser-extension" aria-labelledby="whattheduck-browser-extension-title">
+                    <span class="input-group-header input-group-noshrink">
+                        <span class="header-label-wrap">
+                            <span class="header-label" id="whattheduck-browser-extension-title">Send Link to SwarmUI</span>
+                        </span>
+                    </span>
+                    <div class="input-group-content">
+                        <p class="wtd-browser-extension-note">Chrome extension</p>
+                        <ul class="wtd-browser-extension-features">
+                            <li>Send model and download links to SwarmUI’s Model Downloader with a right-click.</li>
+                            <li>See whether the displayed Civitai checkpoint or LoRA version is downloaded, or an older or different version is installed.</li>
+                        </ul>
+                        <p class="wtd-browser-extension-note">After installing, set your SwarmUI server address in the extension’s options.</p>
+                        <a class="basic-button wtd-browser-extension-link" href="https://chromewebstore.google.com/detail/send-link-to-swarmui/ldpjgjjdhhjpmjinlnmhjchcfdamecnh?hl=en-US" target="_blank" rel="noopener noreferrer" aria-label="View in Chrome Web Store (opens in a new tab)">View in Chrome Web Store <span aria-hidden="true">↗</span></a>
+                    </div>
+                </section>
                 <form id="whattheduck-form">
                     <div class="input-group input-group-open">
                         <span class="input-group-header input-group-noshrink">

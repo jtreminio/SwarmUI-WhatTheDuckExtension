@@ -13,6 +13,46 @@
     padding: 0.5rem 0;
 }
 
+.whattheduck-settings .wtd-browser-extension > .input-group-content {
+    display: block;
+    width: auto;
+    max-width: none;
+    box-sizing: border-box;
+    padding: 0.75rem;
+    line-height: 1.5;
+}
+
+.wtd-browser-extension-note {
+    margin: 0 0 0.75rem;
+    color: var(--text-soft);
+    font-size: 0.9rem;
+}
+
+.wtd-browser-extension-features {
+    margin: 0 0 0.75rem;
+    padding-left: 1.25rem;
+}
+
+.wtd-browser-extension-features li + li {
+    margin-top: 0.35rem;
+}
+
+.wtd-browser-extension-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.25rem;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.35rem 0.75rem;
+    margin: 0;
+}
+
+.wtd-browser-extension-link:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 3px;
+}
+
 .whattheduck-status {
     min-height: 1.5rem;
     padding: 0.5rem;
