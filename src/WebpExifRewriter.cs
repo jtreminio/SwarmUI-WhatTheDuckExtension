@@ -3,7 +3,8 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using SixLabors.ImageSharp.Metadata.Profiles.Exif;
+using ImageMagick;
+using SwarmUI.Utils;
 
 namespace WhatTheDuck;
 
@@ -17,7 +18,7 @@ namespace WhatTheDuck;
 public static class WebpExifRewriter
 {
     // Optional EXIF header ("Exif\0\0") that some writers prepend before the TIFF data.
-    private static readonly byte[] ExifHeader = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00];
+    private static ReadOnlySpan<byte> ExifHeader => "Exif\0\0"u8;
 
     /// <summary>
     /// Returns a copy of <paramref name="webp"/> with the EXIF UserComment replaced by
@@ -59,33 +60,32 @@ public static class WebpExifRewriter
         {
             return null; // no EXIF chunk to rewrite
         }
-        byte[] origExif = webp.AsSpan(exifStart, exifLen).ToArray();
-        ExifProfile profile;
+        ReadOnlySpan<byte> origExif = webp.AsSpan(exifStart, exifLen);
+        bool origHadHeader = origExif.StartsWith(ExifHeader);
+        ReadOnlySpan<byte> tiff = origHadHeader ? origExif[ExifHeader.Length..] : origExif;
+        if (tiff.Length < 8 || (!tiff.StartsWith("II*\0"u8) && !tiff.StartsWith("MM\0*"u8)))
+        {
+            return null;
+        }
+
+        byte[] newExif;
         try
         {
-            profile = new ExifProfile(origExif);
+            // Magick.NET expects the EXIF prefix even when the WebP stores raw TIFF.
+            ExifProfile profile = new(origHadHeader ? origExif.ToArray() : [.. ExifHeader, .. origExif]);
+            profile.SetValue(ExifTag.UserComment, MetadataHelper.EncodeExifUserComment(newUserComment));
+            newExif = profile.ToByteArray();
         }
         catch
         {
             return null;
         }
-        profile.SetValue(ExifTag.UserComment, newUserComment);
-        byte[] newExif = profile.ToByteArray();
-        if (newExif is null)
+        if (newExif.Length == 0)
         {
             return null;
         }
         // Match the original chunk's framing regarding the optional "Exif\0\0" header.
-        bool origHadHeader = StartsWith(origExif, ExifHeader);
-        bool newHasHeader = StartsWith(newExif, ExifHeader);
-        if (origHadHeader && !newHasHeader)
-        {
-            byte[] prefixed = new byte[ExifHeader.Length + newExif.Length];
-            ExifHeader.CopyTo(prefixed, 0);
-            newExif.CopyTo(prefixed, ExifHeader.Length);
-            newExif = prefixed;
-        }
-        else if (!origHadHeader && newHasHeader)
+        if (!origHadHeader)
         {
             newExif = newExif.AsSpan(ExifHeader.Length).ToArray();
         }
@@ -108,21 +108,5 @@ public static class WebpExifRewriter
         byte[] result = ms.ToArray();
         BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(4, 4), result.Length - 8);
         return result;
-    }
-
-    private static bool StartsWith(byte[] data, byte[] prefix)
-    {
-        if (data.Length < prefix.Length)
-        {
-            return false;
-        }
-        for (int i = 0; i < prefix.Length; i++)
-        {
-            if (data[i] != prefix[i])
-            {
-                return false;
-            }
-        }
-        return true;
     }
 }

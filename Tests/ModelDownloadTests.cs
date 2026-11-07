@@ -13,7 +13,7 @@ using Xunit;
 public class ModelDownloadTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), $"wtd-download-test-{Guid.NewGuid():N}");
-    private readonly HttpClient originalClient = Utilities.UtilWebClient;
+    private readonly HttpClient originalClient = Utilities.DownloaderWebClient;
     private readonly string originalRoots = Program.ServerSettings.Paths.ModelRoot;
     private readonly int originalRootId = Program.ServerSettings.Paths.DownloadToRootID;
     private readonly bool originalResave = Program.ServerSettings.Paths.DownloaderAlwaysResave;
@@ -23,8 +23,9 @@ public class ModelDownloadTests : IDisposable
 
     public ModelDownloadTests()
     {
-        // Only model permission checks are needed; no account database is opened.
+        // Use a user identity and permissions without opening the account database.
         User user = (User)RuntimeHelpers.GetUninitializedObject(typeof(User));
+        user.Data = new User.DatabaseEntry { ID = "download-test" };
         user.CalculatedRole = new Role("test");
         session = new Session { User = user };
         Program.ServerSettings.Paths.ModelRoot = $"{root}/first;{root}/second";
@@ -36,7 +37,7 @@ public class ModelDownloadTests : IDisposable
             // These tests exercise downloading, not SwarmUI's metadata database.
             IsShutdown = true
         };
-        Utilities.UtilWebClient = new HttpClient(http);
+        Utilities.DownloaderWebClient = new HttpClient(http);
     }
 
     [Theory]
@@ -132,8 +133,8 @@ public class ModelDownloadTests : IDisposable
 
     public void Dispose()
     {
-        Utilities.UtilWebClient.Dispose();
-        Utilities.UtilWebClient = originalClient;
+        Utilities.DownloaderWebClient.Dispose();
+        Utilities.DownloaderWebClient = originalClient;
         Program.ServerSettings.Paths.ModelRoot = originalRoots;
         Program.ServerSettings.Paths.DownloadToRootID = originalRootId;
         Program.ServerSettings.Paths.DownloaderAlwaysResave = originalResave;

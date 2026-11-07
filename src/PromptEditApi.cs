@@ -118,11 +118,11 @@ public static class PromptEditApi
                 ImageFile source = img;
                 if (img.Type.MetaType != MediaMetaType.Image)
                 {
-                    if (img.ToIS.Frames.Count > 1)
+                    if (img.ToMagickFrames.Count > 1)
                     {
                         return new JObject { ["success"] = false, ["error"] = "Editing the prompt is not supported for animated images." };
                     }
-                    source = new Image(ImageFile.ISImgToPngBytes(img.ToIS), MediaType.ImagePng);
+                    source = new Image(ImageFile.MagickImageToPngBytes(img.ToMagick), MediaType.ImagePng);
                 }
                 int quality = Math.Clamp(session.User.Settings.FileFormat.ImageQuality, 1, 100);
                 int dpi = session.User.Settings.FileFormat.DPI;

@@ -1,8 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Reflection;
 using Newtonsoft.Json.Linq;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using ImageMagick;
 using SwarmUI.Accounts;
 using SwarmUI.Core;
 using SwarmUI.Media;
@@ -137,10 +136,8 @@ public class OutputFilenameNormalizationTests : IDisposable
             string existingPath = Path.Combine(root, stem + "1.png");
             Directory.CreateDirectory(Path.GetDirectoryName(existingPath)!);
             await File.WriteAllTextAsync(existingPath, "existing file");
-            using Image<Rgba32> sample = new(1, 1);
-            using MemoryStream pngStream = new();
-            sample.SaveAsPng(pngStream);
-            byte[] png = pngStream.ToArray();
+            using MagickImage sample = new(MagickColors.Transparent, 1, 1);
+            byte[] png = sample.ToByteArray(MagickFormat.Png);
             const string metadata = "{\"prompt\":\"Alai\\u0308a\"}";
 
             for (int number = 2; number <= 3; number++)
