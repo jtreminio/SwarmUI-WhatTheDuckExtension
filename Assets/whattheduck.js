@@ -1414,6 +1414,8 @@ ${failures.join("\n")}`
   var hovered = null;
   var hoveredElement = null;
   var markedBlock = null;
+  var sourceTiles = /* @__PURE__ */ new WeakMap();
+  var isCompareModalOpen = () => typeof imageCompareHelper !== "undefined" && imageCompareHelper.isOpen();
   var isComparable = (block) => {
     if (!block || !document.body.contains(block)) {
       return false;
@@ -1442,10 +1444,48 @@ ${failures.join("\n")}`
     }
     return null;
   };
-  var blockToItem = (block) => ({
-    src: block.dataset.src,
-    mediaType: getMediaType(block.dataset.src)
-  });
+  var blockToItem = (block, galleryId) => {
+    const { src, metadata, name } = block.dataset;
+    const item = { src, mediaType: getMediaType(src) };
+    let itemMetadata = metadata;
+    if (!itemMetadata && name) {
+      if (galleryId === HISTORY_ID && typeof imageHistoryBrowser !== "undefined") {
+        itemMetadata = imageHistoryBrowser.getFileFor(name)?.data.metadata;
+      } else if (galleryId === SEARCH_ID) {
+        itemMetadata = window.quarryGetImageSearchMetadata?.(name);
+      }
+    }
+    if (itemMetadata) {
+      item.metadata = itemMetadata;
+    }
+    sourceTiles.set(item, { galleryId, block });
+    return item;
+  };
+  var getNextCompareItem = (item, step) => {
+    const source = sourceTiles.get(item);
+    const galleryId = source?.galleryId ?? HISTORY_ID;
+    const gallery = document.getElementById(galleryId);
+    if (!gallery) {
+      return null;
+    }
+    const tiles = galleryId === BATCH_ID ? Array.from(
+      gallery.querySelectorAll(".image-block-img-inner"),
+      (thumbnail) => thumbnail.closest(".image-block")
+    ).filter(
+      (tile) => tile && !tile.classList.contains("image-block-placeholder")
+    ) : [
+      ...gallery.querySelectorAll(
+        ":scope > .image-block, :scope > .model-block"
+      )
+    ];
+    const block = source?.block;
+    let index = block?.dataset.src === item.src ? tiles.indexOf(block) : -1;
+    if (index < 0) {
+      index = tiles.findIndex((tile) => tile.dataset.src === item.src);
+    }
+    const next = index < 0 ? null : tiles[index + step];
+    return isComparable(next) ? blockToItem(next, galleryId) : null;
+  };
   var clearMark = () => {
     if (markedBlock) {
       markedBlock.classList.remove(MARKED_CLASS);
@@ -1458,7 +1498,16 @@ ${failures.join("\n")}`
     block.classList.add(MARKED_CLASS);
   };
   var launchCompare = (marked, target) => {
-    const items = [blockToItem(marked), blockToItem(target)];
+    const markedGallery = closestContainer(marked);
+    const targetGallery = closestContainer(target);
+    if (!markedGallery || !targetGallery) {
+      clearMark();
+      return;
+    }
+    const items = [
+      blockToItem(marked, markedGallery.id),
+      blockToItem(target, targetGallery.id)
+    ];
     const valid = imageCompareHelper.evaluateSelection(items);
     if (valid.state !== "ready") {
       if (typeof showError === "function") {
@@ -1475,7 +1524,7 @@ ${failures.join("\n")}`
     imageCompareHelper.showComparison(items[0], items[1]);
   };
   var handleCompareKey = () => {
-    if (document.querySelector("dialog[open], .modal.show") || typeof imageCompareHelper !== "undefined" && imageCompareHelper.isOpen()) {
+    if (document.querySelector("dialog[open], .modal.show") || isCompareModalOpen()) {
       return false;
     }
     if (toggleHoveredModelSelection(hoveredElement)) {
@@ -1513,7 +1562,7 @@ ${failures.join("\n")}`
     if (key === "Escape") {
       if (document.querySelector(
         "dialog[open], .modal.show, .sui-popover-visible"
-      ) || typeof imageCompareHelper !== "undefined" && imageCompareHelper.isOpen()) {
+      ) || isCompareModalOpen()) {
         return;
       }
       clearMark();
@@ -1575,18 +1624,40 @@ ${failures.join("\n")}`
     "&": "#image_compare_metadata_toggle_button"
   };
   var attached2 = false;
-  var isModalOpen = () => typeof imageCompareHelper !== "undefined" && imageCompareHelper.isOpen();
-  var handleKeydown2 = (event) => {
-    if (event.repeat) {
+  var movePair = (step) => {
+    const { left, right } = imageCompareHelper;
+    if (!left || !right) {
       return;
     }
+    const nextLeft = getNextCompareItem(left, step);
+    const nextRight = getNextCompareItem(right, step);
+    if (nextLeft && nextRight) {
+      imageCompareHelper.showComparison(nextLeft, nextRight);
+    }
+  };
+  var handleKeydown2 = (event) => {
     if (event.ctrlKey || event.altKey || event.metaKey) {
       return;
     }
-    if (isEditableElement(event.target)) {
+    if (!isCompareModalOpen()) {
       return;
     }
-    if (!isModalOpen()) {
+    const key = event.key.toLowerCase();
+    const isNavigationLetter = key === "a" || key === "d";
+    const target = event.target;
+    const isSliderShortcut = isNavigationLetter && target instanceof HTMLInputElement && target.type === "range" && target.closest(`#${MODAL_ID3}`);
+    if (isEditableElement(target) && !isSliderShortcut) {
+      return;
+    }
+    const isArrow = key === "arrowleft" || key === "arrowright";
+    if (isArrow || isNavigationLetter) {
+      suppressEvent(event);
+      if (!event.repeat || isArrow) {
+        movePair(key === "a" || key === "arrowleft" ? -1 : 1);
+      }
+      return;
+    }
+    if (event.repeat) {
       return;
     }
     const selector = KEY_TO_SELECTOR[event.key];
@@ -1801,37 +1872,36 @@ ${failures.join("\n")}`
     if (isEditableElement(event.target)) {
       return;
     }
-    const key = event.key;
-    if (key !== "a" && key !== "A" && key !== "d" && key !== "D" && key !== "s" && key !== "S" && key !== "x" && key !== "X" && key !== "q" && key !== "Q" && key !== "e" && key !== "E" && key !== "r" && key !== "R") {
+    const key = event.key.toLowerCase();
+    if (!["a", "d", "s", "x", "q", "e", "r"].includes(key)) {
+      return;
+    }
+    if (key === "a" || key === "d") {
+      if (!isCompareModalOpen()) {
+        suppressEvent(event);
+        dispatchArrowKey(key === "a" ? "left" : "right");
+      }
       return;
     }
     suppressEvent(event);
-    if (key === "a" || key === "A") {
-      dispatchArrowKey("left");
-      return;
-    }
-    if (key === "d" || key === "D") {
-      dispatchArrowKey("right");
-      return;
-    }
-    if (key === "e" || key === "E") {
+    if (key === "e") {
       triggerInterrupt();
       return;
     }
-    if (key === "r" || key === "R") {
+    if (key === "r") {
       redo.run();
       return;
     }
     const context = getUIContext();
-    if (key === "s" || key === "S") {
+    if (key === "s") {
       simulateClick(context.getStarButton());
       return;
     }
-    if (key === "x" || key === "X") {
+    if (key === "x") {
       handleDeleteKey(event, context);
       return;
     }
-    if (key === "q" || key === "Q") {
+    if (key === "q") {
       simulateClick(context.getDeleteButton(), { shiftKey: event.shiftKey });
     }
   };
@@ -1933,6 +2003,7 @@ ${failures.join("\n")}`
                                     <br>• <code>S</code> - Toggle star/favorite
                                     <br>• <code>X</code> - Delete image (double-tap required)
                                     <br>• <code>C</code> - Compare: mark a batch item, press again on another to open compare (<code>Esc</code> to clear)
+                                    <br>• <code>A</code>/<code>D</code> or <code>←</code>/<code>→</code> in the comparison modal - Move both images to the previous or next pair
                                     <br>• <code>1</code>-<code>7</code> (or Shift symbols <code>!@#$%^&</code>) - In the comparison modal, switch view: Side by Side, Horizontal Slide, Vertical Slide, Transparency Overlay, Single View, Switch Image, Toggle Metadata
                                 </span>
                                 <br><b>Note:</b> Changes take effect after page reload.

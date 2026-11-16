@@ -11,6 +11,7 @@
  * - R: Redo current image with a fresh seed (same as the Redo button)
  */
 import { navigateBatchAudio } from "./audioNavigation";
+import { isCompareModalOpen } from "./batchCompare";
 import { isEditableElement, suppressEvent } from "./dom";
 import { redo } from "./redo";
 
@@ -186,55 +187,40 @@ const handleKeydown = (event: KeyboardEvent): void => {
         return;
     }
 
-    const key = event.key;
-    if (
-        key !== "a" &&
-        key !== "A" &&
-        key !== "d" &&
-        key !== "D" &&
-        key !== "s" &&
-        key !== "S" &&
-        key !== "x" &&
-        key !== "X" &&
-        key !== "q" &&
-        key !== "Q" &&
-        key !== "e" &&
-        key !== "E" &&
-        key !== "r" &&
-        key !== "R"
-    ) {
+    const key = event.key.toLowerCase();
+    if (!["a", "d", "s", "x", "q", "e", "r"].includes(key)) {
+        return;
+    }
+
+    if (key === "a" || key === "d") {
+        if (!isCompareModalOpen()) {
+            suppressEvent(event);
+            dispatchArrowKey(key === "a" ? "left" : "right");
+        }
         return;
     }
 
     suppressEvent(event);
 
-    if (key === "a" || key === "A") {
-        dispatchArrowKey("left");
-        return;
-    }
-    if (key === "d" || key === "D") {
-        dispatchArrowKey("right");
-        return;
-    }
-    if (key === "e" || key === "E") {
+    if (key === "e") {
         triggerInterrupt();
         return;
     }
-    if (key === "r" || key === "R") {
+    if (key === "r") {
         redo.run();
         return;
     }
 
     const context = getUIContext();
-    if (key === "s" || key === "S") {
+    if (key === "s") {
         simulateClick(context.getStarButton());
         return;
     }
-    if (key === "x" || key === "X") {
+    if (key === "x") {
         handleDeleteKey(event, context);
         return;
     }
-    if (key === "q" || key === "Q") {
+    if (key === "q") {
         simulateClick(context.getDeleteButton(), { shiftKey: event.shiftKey });
     }
 };

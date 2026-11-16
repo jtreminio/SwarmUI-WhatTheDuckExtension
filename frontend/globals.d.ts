@@ -92,6 +92,7 @@ declare function showError(message: string): void;
 interface CompareItem {
     src: string;
     mediaType: string;
+    metadata?: string;
 }
 
 interface CompareSelectionResult {
@@ -100,12 +101,22 @@ interface CompareSelectionResult {
 }
 
 declare const imageCompareHelper: {
+    readonly left: CompareItem | null;
+    readonly right: CompareItem | null;
     evaluateSelection(items: CompareItem[]): CompareSelectionResult;
     isShowingPair(a: CompareItem, b: CompareItem): boolean;
     isOpen(): boolean;
     reset(): void;
     showComparison(a: CompareItem, b: CompareItem): void;
 };
+
+declare const imageHistoryBrowser: {
+    getFileFor(name: string): { data: { metadata?: string } } | undefined;
+};
+
+interface Window {
+    quarryGetImageSearchMetadata?: (name: string) => string | undefined;
+}
 
 declare const mainGenHandler: {
     doInterrupt(): void;

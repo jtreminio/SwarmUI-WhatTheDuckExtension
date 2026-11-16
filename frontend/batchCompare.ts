@@ -25,7 +25,7 @@ const HISTORY_ID = "imagehistorybrowser-content";
 const SEARCH_ID = "quarryimagesearch-content";
 const CONTAINER_IDS = [BATCH_ID, HISTORY_ID, SEARCH_ID];
 
-/** The compare-source container (batch or history) an `.image-block` lives in, if any. */
+/** The gallery an `.image-block` lives in, if any. */
 const closestContainer = (block: HTMLElement | null): HTMLElement | null => {
     for (const id of CONTAINER_IDS) {
         const container = block?.closest(`#${id}`) as HTMLElement | null;
@@ -40,6 +40,14 @@ let attached = false;
 let hovered: HTMLElement | null = null;
 let hoveredElement: Element | null = null;
 let markedBlock: HTMLElement | null = null;
+// SwarmUI keeps these item objects when displaying or swapping the two sides.
+const sourceTiles = new WeakMap<
+    CompareItem,
+    { galleryId: string; block: HTMLElement }
+>();
+
+export const isCompareModalOpen = (): boolean =>
+    typeof imageCompareHelper !== "undefined" && imageCompareHelper.isOpen();
 
 /** A block is comparable if it is a real, finished image/video tile (not a placeholder/failed/empty tile). */
 export const isComparable = (block: HTMLElement | null): boolean => {
@@ -76,10 +84,64 @@ const getTargetBlock = (): HTMLElement | null => {
     return null;
 };
 
-const blockToItem = (block: HTMLElement): CompareItem => ({
-    src: block.dataset.src,
-    mediaType: getMediaType(block.dataset.src),
-});
+const blockToItem = (block: HTMLElement, galleryId: string): CompareItem => {
+    const { src, metadata, name } = block.dataset;
+    const item: CompareItem = { src, mediaType: getMediaType(src) };
+    let itemMetadata = metadata;
+    if (!itemMetadata && name) {
+        if (
+            galleryId === HISTORY_ID &&
+            typeof imageHistoryBrowser !== "undefined"
+        ) {
+            itemMetadata = imageHistoryBrowser.getFileFor(name)?.data.metadata;
+        } else if (galleryId === SEARCH_ID) {
+            itemMetadata = window.quarryGetImageSearchMetadata?.(name);
+        }
+    }
+    if (itemMetadata) {
+        item.metadata = itemMetadata;
+    }
+    sourceTiles.set(item, { galleryId, block });
+    return item;
+};
+
+export const getNextCompareItem = (
+    item: CompareItem,
+    step: -1 | 1,
+): CompareItem | null => {
+    const source = sourceTiles.get(item);
+    // The built-in Compare action takes its selection from History.
+    const galleryId = source?.galleryId ?? HISTORY_ID;
+    const gallery = document.getElementById(galleryId);
+    if (!gallery) {
+        return null;
+    }
+
+    // Match SwarmUI's single-image navigation order for each gallery.
+    const tiles =
+        galleryId === BATCH_ID
+            ? Array.from(
+                  gallery.querySelectorAll(".image-block-img-inner"),
+                  (thumbnail) => thumbnail.closest<HTMLElement>(".image-block"),
+              ).filter(
+                  (tile) =>
+                      tile &&
+                      !tile.classList.contains("image-block-placeholder"),
+              )
+            : [
+                  ...gallery.querySelectorAll<HTMLElement>(
+                      ":scope > .image-block, :scope > .model-block",
+                  ),
+              ];
+    const block = source?.block;
+    let index = block?.dataset.src === item.src ? tiles.indexOf(block) : -1;
+    if (index < 0) {
+        // Sorting or refreshing can rebuild a gallery's tiles.
+        index = tiles.findIndex((tile) => tile.dataset.src === item.src);
+    }
+    const next = index < 0 ? null : tiles[index + step];
+    return isComparable(next) ? blockToItem(next, galleryId) : null;
+};
 
 const clearMark = (): void => {
     if (markedBlock) {
@@ -95,7 +157,16 @@ const markBlock = (block: HTMLElement): void => {
 };
 
 const launchCompare = (marked: HTMLElement, target: HTMLElement): void => {
-    const items = [blockToItem(marked), blockToItem(target)];
+    const markedGallery = closestContainer(marked);
+    const targetGallery = closestContainer(target);
+    if (!markedGallery || !targetGallery) {
+        clearMark();
+        return;
+    }
+    const items = [
+        blockToItem(marked, markedGallery.id),
+        blockToItem(target, targetGallery.id),
+    ];
     const valid = imageCompareHelper.evaluateSelection(items);
     if (valid.state !== "ready") {
         if (typeof showError === "function") {
@@ -116,8 +187,7 @@ const handleCompareKey = (): boolean => {
     // Modals own their own interactions; don't act on a tile behind them.
     if (
         document.querySelector("dialog[open], .modal.show") ||
-        (typeof imageCompareHelper !== "undefined" &&
-            imageCompareHelper.isOpen())
+        isCompareModalOpen()
     ) {
         return false;
     }
@@ -162,8 +232,7 @@ const handleKeydown = (event: KeyboardEvent): void => {
             document.querySelector(
                 "dialog[open], .modal.show, .sui-popover-visible",
             ) ||
-            (typeof imageCompareHelper !== "undefined" &&
-                imageCompareHelper.isOpen())
+            isCompareModalOpen()
         ) {
             return;
         }
